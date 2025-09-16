@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const Version = "0.1"
+
 var rootCmd = &cobra.Command{
 	Use:   "pdbtk",
 	Short: "PDB (and PDBx/mmCIF) structure file manipulation toolkit",

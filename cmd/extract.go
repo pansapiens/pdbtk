@@ -108,13 +108,16 @@ func runExtract(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Get the full command line for REMARK
+	commandLine := getCommandLine(cmd, args)
+
 	// Write output
 	if output == "" {
 		// Write to stdout
-		return writeToStdout(extractedChains, outputFormat)
+		return writeToStdout(extractedChains, outputFormat, commandLine)
 	} else {
 		// Write to file
-		return writeToFile(extractedChains, output, outputFormat)
+		return writeToFile(extractedChains, output, outputFormat, commandLine)
 	}
 }
 
@@ -243,21 +246,44 @@ func extractChainsPDBx(entry *pdbx.Entry, chainList []string) (*pdbx.Entry, erro
 	return newEntry, nil
 }
 
-func writeToStdout(entry interface{}, format string) error {
+func getCommandLine(cmd *cobra.Command, args []string) string {
+	// Build the command line from the command and its flags
+	commandLine := "pdbtk extract"
+
+	// Add flags
+	if chains != "" {
+		commandLine += fmt.Sprintf(" --chains %s", chains)
+	}
+	if output != "" {
+		commandLine += fmt.Sprintf(" --output %s", output)
+	}
+	if format != "auto" {
+		commandLine += fmt.Sprintf(" --format %s", format)
+	}
+
+	// Add input file
+	if len(args) > 0 {
+		commandLine += " " + args[0]
+	}
+
+	return commandLine
+}
+
+func writeToStdout(entry interface{}, format string, commandLine string) error {
 	// For now, we'll implement a simple text output
 	// In a full implementation, you'd want to use proper PDB/PDBx writers
 	fmt.Fprintf(os.Stderr, "Writing %s format to stdout\n", format)
 
 	if format == "pdb" {
 		pdbEntry := entry.(*pdb.Entry)
-		return writePDBToWriter(pdbEntry, os.Stdout)
+		return writePDBToWriter(pdbEntry, os.Stdout, commandLine)
 	} else {
 		pdbxEntry := entry.(*pdbx.Entry)
-		return writePDBxToWriter(pdbxEntry, os.Stdout)
+		return writePDBxToWriter(pdbxEntry, os.Stdout, commandLine)
 	}
 }
 
-func writeToFile(entry interface{}, filename, format string) error {
+func writeToFile(entry interface{}, filename, format string, commandLine string) error {
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -266,10 +292,10 @@ func writeToFile(entry interface{}, filename, format string) error {
 
 	if format == "pdb" {
 		pdbEntry := entry.(*pdb.Entry)
-		return writePDBToWriter(pdbEntry, file)
+		return writePDBToWriter(pdbEntry, file, commandLine)
 	} else {
 		pdbxEntry := entry.(*pdbx.Entry)
-		return writePDBxToWriter(pdbxEntry, file)
+		return writePDBxToWriter(pdbxEntry, file, commandLine)
 	}
 }
 
@@ -355,10 +381,11 @@ func formatAtomName(atomName string) string {
 	return fmt.Sprintf("%-4s", name)
 }
 
-func writePDBToWriter(entry *pdb.Entry, writer *os.File) error {
+func writePDBToWriter(entry *pdb.Entry, writer *os.File, commandLine string) error {
 	// Simple PDB output - in a full implementation, you'd want to use proper PDB writers
 	fmt.Fprintf(writer, "HEADER    EXTRACTED CHAINS FROM %s\n", entry.IdCode)
-	fmt.Fprintf(writer, "REMARK    EXTRACTED BY PDBTK\n")
+	fmt.Fprintf(writer, "REMARK    EXTRACTED BY PDBTK %s\n", Version)
+	fmt.Fprintf(writer, "REMARK    COMMAND: %s\n", commandLine)
 
 	// Check if any chain has multiple models (ensemble) to determine if we need MODEL/ENDMDL records
 	hasMultipleModels := false
@@ -419,7 +446,7 @@ func writePDBToWriter(entry *pdb.Entry, writer *os.File) error {
 	return nil
 }
 
-func writePDBxToWriter(entry *pdbx.Entry, writer *os.File) error {
+func writePDBxToWriter(entry *pdbx.Entry, writer *os.File, commandLine string) error {
 	// Simple PDBx output - in a full implementation, you'd want to use proper PDBx writers
 	fmt.Fprintf(writer, "data_%s\n", entry.Id)
 	fmt.Fprintf(writer, "#\n")
@@ -427,6 +454,9 @@ func writePDBxToWriter(entry *pdbx.Entry, writer *os.File) error {
 	if entry.Title != "" {
 		fmt.Fprintf(writer, "_struct.title %s\n", entry.Title)
 	}
+	fmt.Fprintf(writer, "#\n")
+	fmt.Fprintf(writer, "# EXTRACTED BY PDBTK %s\n", Version)
+	fmt.Fprintf(writer, "# COMMAND: %s\n", commandLine)
 	fmt.Fprintf(writer, "#\n")
 	fmt.Fprintf(writer, "loop_\n")
 	fmt.Fprintf(writer, "_atom_site.group_PDB\n")

@@ -279,9 +279,8 @@ func residueToSingleLetter(residue string) string {
 func writeSequencesToStdout(sequences []Sequence) error {
 	for _, seq := range sequences {
 		fmt.Fprintf(os.Stdout, ">%s\n", seq.ID)
-		// Write sequence in 80-character lines
-		writeSequenceLines(os.Stdout, seq.Sequence)
-		fmt.Fprintf(os.Stdout, "\n")
+		// Write sequence on single line
+		fmt.Fprintf(os.Stdout, "%s\n", seq.Sequence)
 	}
 	return nil
 }
@@ -295,20 +294,8 @@ func writeSequencesToFile(sequences []Sequence, filename string) error {
 
 	for _, seq := range sequences {
 		fmt.Fprintf(file, ">%s\n", seq.ID)
-		// Write sequence in 80-character lines
-		writeSequenceLines(file, seq.Sequence)
-		fmt.Fprintf(file, "\n")
+		// Write sequence on single line
+		fmt.Fprintf(file, "%s\n", seq.Sequence)
 	}
 	return nil
-}
-
-func writeSequenceLines(writer *os.File, sequence string) {
-	const lineLength = 80
-	for i := 0; i < len(sequence); i += lineLength {
-		end := i + lineLength
-		if end > len(sequence) {
-			end = len(sequence)
-		}
-		fmt.Fprintf(writer, "%s\n", sequence[i:end])
-	}
 }
