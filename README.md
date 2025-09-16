@@ -1,6 +1,8 @@
 # pdbtk
 
-PDB (and PDBx/mmCIF) structure file manipulation toolkit (in the spirit of `seqtk`, `seqkit`, `csvtk`).
+A simple PDB (and PDBx/mmCIF) structure file manipulation toolkit (in the spirit of `seqtk`, `seqkit`, `csvtk`).
+
+`pdbtk` (currently) strives to be practical over 100% standards compliant.
 
 ## Examples
 
@@ -16,4 +18,13 @@ pdbtk extract-seq 1a02.pdb >1a02.fasta
 
 # Extract sequences for specific chains
 pdbtk extract-seq --chains A,B,C 1a02.pdb >1a02_chainABC.fasta
+```
+
+## Building
+
+```bash
+go build -o pdbtk cmd/main.go
+
+# or
+# make build
 ```
