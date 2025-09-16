@@ -46,8 +46,8 @@ jobs:
         CGO_ENABLED: 0
       run: |
         go build -ldflags="-s -w" -o ${{ matrix.output }} .
-        # Compress the binary to reduce size
-        if command -v upx >/dev/null 2>&1; then
+        # Compress the binary to reduce size (skip macOS due to UPX limitations)
+        if command -v upx >/dev/null 2>&1 && [ "${{ matrix.goos }}" != "darwin" ]; then
           upx --best ${{ matrix.output }}
         fi
 
