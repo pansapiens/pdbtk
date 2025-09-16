@@ -273,15 +273,110 @@ func writeToFile(entry interface{}, filename, format string) error {
 	}
 }
 
+// extractElementSymbol extracts the element symbol from an atom name
+func extractElementSymbol(atomName string) string {
+	// Remove leading digits and spaces, then take the first letter
+	atomName = strings.TrimSpace(atomName)
+	if len(atomName) == 0 {
+		return ""
+	}
+
+	// Find the first alphabetic character
+	for i, char := range atomName {
+		if (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') {
+			// Take the first letter and optionally the second if it's lowercase
+			if i+1 < len(atomName) && atomName[i+1] >= 'a' && atomName[i+1] <= 'z' {
+				return strings.ToUpper(atomName[i : i+2])
+			}
+			return strings.ToUpper(string(char))
+		}
+	}
+
+	// Fallback: return the first character if no alphabetic character found
+	if len(atomName) > 0 {
+		return strings.ToUpper(string(atomName[0]))
+	}
+	return ""
+}
+
+// singleLetterToResidue converts single-letter amino acid codes to three-letter codes
+func singleLetterToResidue(singleLetter string) string {
+	// Convert to uppercase for consistency
+	singleLetter = strings.ToUpper(singleLetter)
+
+	// Reverse mapping from single letter to three letter codes
+	reverseMap := map[string]string{
+		"A": "ALA", "R": "ARG", "N": "ASN", "D": "ASP", "C": "CYS",
+		"Q": "GLN", "E": "GLU", "G": "GLY", "H": "HIS", "I": "ILE",
+		"L": "LEU", "K": "LYS", "M": "MET", "F": "PHE", "P": "PRO",
+		"S": "SER", "T": "THR", "W": "TRP", "Y": "TYR", "V": "VAL",
+		// Modified amino acids and common variants
+		"U": "SEC", "O": "PYL", // Selenocysteine and Pyrrolysine
+		"X": "UNK", "J": "XLE", // Unknown amino acids
+	}
+
+	if threeLetter, exists := reverseMap[singleLetter]; exists {
+		return threeLetter
+	}
+
+	// If not found, return UNK for unknown
+	return "UNK"
+}
+
+// formatAtomName formats the atom name for PDB output according to spec.
+// Columns 13-16: Atom name.
+// Details: Element symbol right-justified in 13-14.
+//
+//	Trailing characters left-justified in 15-16.
+//	Single-char element symbol should be in column 14, unless atom name is 4 chars.
+func formatAtomName(atomName string) string {
+	name := strings.TrimSpace(atomName)
+	element := extractElementSymbol(name)
+
+	// Rule: If an atom name has four characters, it must start in column 13
+	if len(name) >= 4 {
+		return fmt.Sprintf("%-4s", name)
+	}
+
+	// Rule: single-character element symbol should not appear in column 13
+	if len(element) == 1 {
+		// Place element in column 14.
+		trailing := strings.TrimPrefix(name, element)
+		return fmt.Sprintf(" %-1s%-2s", element, trailing)
+	}
+
+	// Rule: element symbols right-justified in columns 13-14.
+	if len(element) == 2 {
+		trailing := strings.TrimPrefix(name, element)
+		return fmt.Sprintf("%-2s%-2s", element, trailing)
+	}
+
+	// Fallback for weird cases, just left-justify.
+	return fmt.Sprintf("%-4s", name)
+}
+
 func writePDBToWriter(entry *pdb.Entry, writer *os.File) error {
 	// Simple PDB output - in a full implementation, you'd want to use proper PDB writers
 	fmt.Fprintf(writer, "HEADER    EXTRACTED CHAINS FROM %s\n", entry.IdCode)
 	fmt.Fprintf(writer, "REMARK    EXTRACTED BY PDBTK\n")
 
+	// Check if any chain has multiple models (ensemble) to determine if we need MODEL/ENDMDL records
+	hasMultipleModels := false
+	for _, chain := range entry.Chains {
+		if len(chain.Models) > 1 {
+			hasMultipleModels = true
+			break
+		}
+	}
+
 	atomSerial := 1
 	for _, chain := range entry.Chains {
 		for _, model := range chain.Models {
-			fmt.Fprintf(writer, "MODEL        %d\n", model.Num)
+			// Only output MODEL record if we have multiple models (ensemble)
+			if hasMultipleModels {
+				fmt.Fprintf(writer, "MODEL        %d\n", model.Num)
+			}
+
 			for _, residue := range model.Residues {
 				for _, atom := range residue.Atoms {
 					recordType := "ATOM  "
@@ -294,22 +389,29 @@ func writePDBToWriter(entry *pdb.Entry, writer *os.File) error {
 						insertionCode = ' '
 					}
 
-					fmt.Fprintf(writer, "%s  %5d  %-4s%c%3s %c%4d%c   %8.3f%8.3f%8.3f  1.00 20.00           %c\n",
-						recordType,
-						atomSerial,
-						atom.Name,
-						' ',                  // alt loc
-						string(residue.Name), // Convert seq.Residue to string
-						chain.Ident,
-						residue.SequenceNum,
-						insertionCode,
-						atom.Coords.X, atom.Coords.Y, atom.Coords.Z,
-						' ', // element
+					formattedAtomName := formatAtomName(atom.Name)
+
+					fmt.Fprintf(writer, "%-6s%5d %s%c%3s %c%4d%c   %8.3f%8.3f%8.3f%6.2f%6.2f          %2s\n",
+						recordType,        // 1-6: "ATOM  " or "HETATM"
+						atomSerial,        // 7-11: atom serial number
+						formattedAtomName, // 13-16: atom name
+						' ',               // 17: alternate location indicator
+						singleLetterToResidue(string(residue.Name)), // 18-20: residue name
+						chain.Ident,                                 // 22: chain identifier
+						residue.SequenceNum,                         // 23-26: residue sequence number
+						insertionCode,                               // 27: insertion code
+						atom.Coords.X, atom.Coords.Y, atom.Coords.Z, // 31-38, 39-46, 47-54: coordinates
+						1.00, 20.00, // 55-60, 61-66: occupancy and temperature factor
+						extractElementSymbol(atom.Name), // 77-78: element symbol
 					)
 					atomSerial++
 				}
 			}
-			fmt.Fprintf(writer, "ENDMDL\n")
+
+			// Only output ENDMDL record if we have multiple models (ensemble)
+			if hasMultipleModels {
+				fmt.Fprintf(writer, "ENDMDL\n")
+			}
 		}
 	}
 
