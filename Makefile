@@ -27,10 +27,6 @@ build-all:
 fmt:
 	go fmt ./...
 
-# Run linter
-lint:
-	golangci-lint run
-
 # Update dependencies
 deps:
 	go mod tidy
