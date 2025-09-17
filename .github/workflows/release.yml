@@ -81,7 +81,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          artifacts/pdbtk-*
+          artifacts/*/pdbtk-*
           artifacts/checksums.txt
         draft: false
         prerelease: false
