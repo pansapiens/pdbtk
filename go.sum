@@ -1,5 +1,3 @@
-github.com/BurntSushi/cif v0.0.0-20140118173227-e459106941ba h1:c+eqYI4ijTOXXT9ANIu27xpmH433UDEbVAksAeHtFEI=
-github.com/BurntSushi/cif v0.0.0-20140118173227-e459106941ba/go.mod h1:iGuSD07zGCQj4AkL2Y6Y1wfurc+nfeiMJb/L6y0CaIA=
 github.com/TuftsBCB/io v0.0.0-20140121014543-22b94e9b23f9 h1:Zc1/GNsUpgZR9qm1EmRSKrnOHA7CCd0bIzGdq0cREN0=
 github.com/TuftsBCB/io v0.0.0-20140121014543-22b94e9b23f9/go.mod h1:PZyV4WA3NpqtezSY0h6E6NARAmdDm0qwrydveOyR5Gc=
 github.com/TuftsBCB/seq v0.0.0-20140303222402-72e89e6a4367 h1:jpZ3o1JN2uTxOJF8Ghs+CFFa9IAz4GZOT2ZQ0fWwuX0=

@@ -1,6 +1,6 @@
 # pdbtk
 
-A simple PDB (and PDBx/mmCIF) structure file manipulation toolkit (in the spirit of `seqtk`, `seqkit`, `csvtk`).
+A simple PDB structure file manipulation toolkit (in the spirit of `seqtk`, `seqkit`, `csvtk`).
 
 `pdbtk` (currently) strives to be practical over 100% standards compliant.
 

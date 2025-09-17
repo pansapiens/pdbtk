@@ -11,8 +11,8 @@ const Version = "0.1"
 
 var rootCmd = &cobra.Command{
 	Use:   "pdbtk",
-	Short: "PDB (and PDBx/mmCIF) structure file manipulation toolkit",
-	Long: `pdbtk is a command-line toolkit for manipulating PDB and PDBx/mmCIF structure files.
+	Short: "PDB structure file manipulation toolkit",
+	Long: `pdbtk is a command-line toolkit for manipulating PDB structure files.
 It provides various operations for extracting, filtering, and transforming protein structure data.`,
 }
 
