@@ -5,6 +5,10 @@
 - Do not write extraneous comments in the code; comment where code deviates from typical patterns or is particularly complex / cryptic. Don't comment on lines that would be self-explanatory to a junior developer.
 - Secrets: never hardcode; always use environment variables and `.env` files.
 
+## Documentation
+
+- Update the documentation in the `doc/docs` folder whenever a new command or --flag is added or modified in behavior. Each subcommand should be documented in `doc/docs/usage.md`.
+
 ## CHANGELOG.md
 
 After any bugfix, change in behaviour or an notable new feature has been successfully implemented, update the CHANGELOG.md file. Keep the notes short and concise. Follow the style of https://keepachangelog.com/en/1.1.0/

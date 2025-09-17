@@ -24,6 +24,7 @@ func Execute() error {
 func init() {
 	rootCmd.AddCommand(extractCmd)
 	rootCmd.AddCommand(extractSeqCmd)
+	rootCmd.AddCommand(getCmd)
 }
 
 // CheckFileExists checks if a file exists and returns an error if it doesn't

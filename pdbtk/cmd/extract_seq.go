@@ -17,12 +17,13 @@ var (
 )
 
 var extractSeqCmd = &cobra.Command{
-	Use:   "extract-seq [flags] <input_file>",
+	Use:   "extract-seq [flags] [input_file]",
 	Short: "Extract sequences from chains in a PDB or PDBx/mmCIF file",
 	Long: `Extract sequences from chains in a PDB or PDBx/mmCIF structure file.
 The output is in FASTA format with sequence IDs in the format: >{pdbfilename_no_dotpdb}_{chain}
 
 If no chains are specified, all chains will be extracted.
+If no input file is specified, reads from stdin.
 
 Examples:
   # Extract sequences from all chains
@@ -32,8 +33,11 @@ Examples:
   pdbtk extract-seq --chains A,B,C 1a02.pdb > 1a02_chainABC.fasta
 
   # Extract from PDBx/mmCIF file
-  pdbtk extract-seq --chains A,B --output 1a02_chainAB.fasta 1a02.cif`,
-	Args: cobra.ExactArgs(1),
+  pdbtk extract-seq --chains A,B --output 1a02_chainAB.fasta 1a02.cif
+
+  # Extract from stdin
+  cat 1a02.pdb | pdbtk extract-seq --chains A,B,C`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runExtractSeq,
 }
 
@@ -43,11 +47,27 @@ func init() {
 }
 
 func runExtractSeq(cmd *cobra.Command, args []string) error {
-	inputFile := args[0]
+	var inputFile string
+	var isStdin bool
 
-	// Check if input file exists
-	if err := CheckFileExists(inputFile); err != nil {
-		return err
+	if len(args) > 0 {
+		inputFile = args[0]
+		isStdin = false
+		// Check if input file exists
+		if err := CheckFileExists(inputFile); err != nil {
+			return err
+		}
+	} else {
+		// Check if stdin is available
+		stat, err := os.Stdin.Stat()
+		if err != nil {
+			return fmt.Errorf("failed to check stdin: %v", err)
+		}
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			return fmt.Errorf("no input file specified and stdin is not available")
+		}
+		inputFile = ""
+		isStdin = true
 	}
 
 	// Parse chain IDs (if provided)
@@ -63,30 +83,51 @@ func runExtractSeq(cmd *cobra.Command, args []string) error {
 	}
 
 	// Determine input format
-	inputExt := strings.ToLower(filepath.Ext(inputFile))
 	var isPDBx bool
-	switch inputExt {
-	case ".cif", ".mmcif":
-		isPDBx = true
-	case ".pdb":
-		isPDBx = false
-	default:
-		// Try to detect format by reading the file
-		var err error
-		isPDBx, err = detectFormat(inputFile)
+	var err error
+	var content []byte
+
+	if isStdin {
+		// For stdin, we need to read all content first and detect format
+		content, err = readAllFromStdin()
 		if err != nil {
-			return fmt.Errorf("could not detect file format: %v", err)
+			return fmt.Errorf("failed to read from stdin: %v", err)
+		}
+		isPDBx, err = detectFormatFromContent(content)
+		if err != nil {
+			return fmt.Errorf("could not detect file format from stdin: %v", err)
+		}
+	} else {
+		inputExt := strings.ToLower(filepath.Ext(inputFile))
+		switch inputExt {
+		case ".cif", ".mmcif":
+			isPDBx = true
+		case ".pdb":
+			isPDBx = false
+		default:
+			// Try to detect format by reading the file
+			isPDBx, err = detectFormat(inputFile)
+			if err != nil {
+				return fmt.Errorf("could not detect file format: %v", err)
+			}
 		}
 	}
 
 	// Read the structure file
 	var entry interface{}
-	var err error
 
-	if isPDBx {
-		entry, err = readPDBx(inputFile)
+	if isStdin {
+		if isPDBx {
+			entry, err = readPDBxFromContent(content)
+		} else {
+			entry, err = readPDBFromContent(content)
+		}
 	} else {
-		entry, err = readPDB(inputFile)
+		if isPDBx {
+			entry, err = readPDBx(inputFile)
+		} else {
+			entry, err = readPDB(inputFile)
+		}
 	}
 
 	if err != nil {
@@ -94,7 +135,12 @@ func runExtractSeq(cmd *cobra.Command, args []string) error {
 	}
 
 	// Generate base filename for sequence IDs (remove .pdb/.cif extension)
-	baseFilename := strings.TrimSuffix(filepath.Base(inputFile), filepath.Ext(inputFile))
+	var baseFilename string
+	if isStdin {
+		baseFilename = "stdin"
+	} else {
+		baseFilename = strings.TrimSuffix(filepath.Base(inputFile), filepath.Ext(inputFile))
+	}
 
 	// Extract sequences
 	sequences, err := extractSequences(entry, chainList, baseFilename, isPDBx)

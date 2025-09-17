@@ -2,6 +2,7 @@
 
 ## Quick Guide
 
+- **Download PDB files**: [get](#get-usage)
 - **Coordinate extraction**: [extract](#extract-usage)
 - **Sequence extraction**: [extract-seq](#extract-seq-usage)
 - **Other**: [completion](#completion-usage)
@@ -22,6 +23,7 @@ Usage:
   pdbtk [command]
 
 Available Commands:
+  get         Download a PDB file from the RCSB PDB database
   extract     Extract chains from a PDB or PDBx/mmCIF file
   extract-seq Extract sequences from chains in a PDB or PDBx/mmCIF file
   completion  Generate the autocompletion script for the specified shell
@@ -33,14 +35,66 @@ Flags:
 Use "pdbtk [command] --help" for more information about a command.
 ```
 
+## get Usage
+
+```text
+Download a PDB file from the RCSB PDB database using the PDB code.
+The file will be downloaded from https://files.rcsb.org/download/{pdb_code}.{format}
+
+By default, the file is saved as {pdb_code}.pdb in the current directory.
+Use --output to specify a different filename or "-" to output to stdout.
+Use --format to specify the file format (pdb, pdb.gz, cif, cif.gz).
+
+Usage:
+  pdbtk get [flags] <pdb_code>
+
+Flags:
+  -f, --format string   File format: pdb, pdb.gz, cif, cif.gz (default: pdb)
+  -h, --help            help for get
+  -o, --output string   Output file (default: {pdb_code}.{format}, use '-' for stdout)
+```
+
+### Examples
+
+Download 1A02 as PDB file
+```bash
+$ pdbtk get 1A02
+```
+
+Download as compressed PDB file
+```bash
+$ pdbtk get --format pdb.gz 1A02
+```
+
+Download as mmCIF file
+```bash
+$ pdbtk get --format cif 1A02
+```
+
+Download to stdout and view the first 10 line with `head`
+```bash
+$ pdbtk get --output - 1A02 | head
+```
+
+Download to specific filename
+```bash
+$ pdbtk get --output my_structure.pdb 1A02
+```
+
+Download the gzipped PDB, uncompress it and extract chain B in a single command
+```bash
+$ pdbtk get --format pdb.gz -o - 1A02 | gunzip -c - | pdbtk extract --chains B
+```
+
 ## extract Usage
 
 ```text
 Extract specific chains from a PDB or PDBx/mmCIF structure file.
 The output can be written to a file or stdout (if no output file is specified).
+If no input file is specified, reads from stdin.
 
 Usage:
-  pdbtk extract [flags] <input_file>
+  pdbtk extract [flags] [input_file]
 
 Flags:
   -c, --chains string   Comma-separated list of chain IDs to extract (required)
@@ -71,6 +125,11 @@ $ pdbtk extract --chains A,B --output 1a02_chainAB.cif 1a02.cif
 $ pdbtk extract --chains A --format pdb --output 1a02_chainA.pdb 1a02.cif
 ```
 
+5. Extract from stdin
+```bash
+$ cat 1a02.pdb | pdbtk extract --chains A,B,C
+```
+
 ## extract-seq Usage
 
 ```text
@@ -78,9 +137,10 @@ Extract sequences from chains in a PDB or PDBx/mmCIF structure file.
 The output is in FASTA format with sequence IDs in the format: >{pdbfilename_no_dotpdb}_{chain}
 
 If no chains are specified, all chains will be extracted.
+If no input file is specified, reads from stdin.
 
 Usage:
-  pdbtk extract-seq [flags] <input_file>
+  pdbtk extract-seq [flags] [input_file]
 
 Flags:
   -c, --chains string   Comma-separated list of chain IDs to extract (default: all chains)
@@ -92,12 +152,12 @@ Flags:
 
 1. Extract sequences from all chains
 ```bash
-$ pdbtk extract-seq 1a02.pdb > 1a02.fasta
+$ pdbtk extract-seq 1a02.pdb >1a02.fasta
 ```
 
 2. Extract sequences from specific chains A, B, and C
 ```bash
-$ pdbtk extract-seq --chains A,B,C 1a02.pdb > 1a02_chainABC.fasta
+$ pdbtk extract-seq --chains A,B,C 1a02.pdb >1a02_chainABC.fasta
 ```
 
 3. Extract from PDBx/mmCIF file
@@ -108,6 +168,11 @@ $ pdbtk extract-seq --chains A,B --output 1a02_chainAB.fasta 1a02.cif
 4. Extract all chains to a file
 ```bash
 $ pdbtk extract-seq --output 1a02_all.fasta 1a02.pdb
+```
+
+5. Extract from stdin
+```bash
+$ cat 1a02.pdb | pdbtk extract-seq --chains B,C
 ```
 
 ## completion Usage

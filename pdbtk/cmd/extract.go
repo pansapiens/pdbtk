@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,10 +19,11 @@ var (
 )
 
 var extractCmd = &cobra.Command{
-	Use:   "extract [flags] <input_file>",
+	Use:   "extract [flags] [input_file]",
 	Short: "Extract chains from a PDB or PDBx/mmCIF file",
 	Long: `Extract specific chains from a PDB or PDBx/mmCIF structure file.
 The output can be written to a file or stdout (if no output file is specified).
+If no input file is specified, reads from stdin.
 
 Examples:
   # Extract chains A, B, and C to a file
@@ -31,8 +33,11 @@ Examples:
   pdbtk extract --chains A,B,C 1a02.pdb > 1a02_chainABC.pdb
 
   # Extract from PDBx/mmCIF file
-  pdbtk extract --chains A,B --output 1a02_chainAB.cif 1a02.cif`,
-	Args: cobra.ExactArgs(1),
+  pdbtk extract --chains A,B --output 1a02_chainAB.cif 1a02.cif
+
+  # Extract from stdin
+  cat 1a02.pdb | pdbtk extract --chains A,B,C`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runExtract,
 }
 
@@ -45,11 +50,27 @@ func init() {
 }
 
 func runExtract(cmd *cobra.Command, args []string) error {
-	inputFile := args[0]
+	var inputFile string
+	var isStdin bool
 
-	// Check if input file exists
-	if err := CheckFileExists(inputFile); err != nil {
-		return err
+	if len(args) > 0 {
+		inputFile = args[0]
+		isStdin = false
+		// Check if input file exists
+		if err := CheckFileExists(inputFile); err != nil {
+			return err
+		}
+	} else {
+		// Check if stdin is available
+		stat, err := os.Stdin.Stat()
+		if err != nil {
+			return fmt.Errorf("failed to check stdin: %v", err)
+		}
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			return fmt.Errorf("no input file specified and stdin is not available")
+		}
+		inputFile = ""
+		isStdin = true
 	}
 
 	// Parse chain IDs
@@ -62,30 +83,51 @@ func runExtract(cmd *cobra.Command, args []string) error {
 	}
 
 	// Determine input format
-	inputExt := strings.ToLower(filepath.Ext(inputFile))
 	var isPDBx bool
-	switch inputExt {
-	case ".cif", ".mmcif":
-		isPDBx = true
-	case ".pdb":
-		isPDBx = false
-	default:
-		// Try to detect format by reading the file
-		var err error
-		isPDBx, err = detectFormat(inputFile)
+	var err error
+	var content []byte
+
+	if isStdin {
+		// For stdin, we need to read all content first and detect format
+		content, err = readAllFromStdin()
 		if err != nil {
-			return fmt.Errorf("could not detect file format: %v", err)
+			return fmt.Errorf("failed to read from stdin: %v", err)
+		}
+		isPDBx, err = detectFormatFromContent(content)
+		if err != nil {
+			return fmt.Errorf("could not detect file format from stdin: %v", err)
+		}
+	} else {
+		inputExt := strings.ToLower(filepath.Ext(inputFile))
+		switch inputExt {
+		case ".cif", ".mmcif":
+			isPDBx = true
+		case ".pdb":
+			isPDBx = false
+		default:
+			// Try to detect format by reading the file
+			isPDBx, err = detectFormat(inputFile)
+			if err != nil {
+				return fmt.Errorf("could not detect file format: %v", err)
+			}
 		}
 	}
 
 	// Read the structure file
 	var entry interface{}
-	var err error
 
-	if isPDBx {
-		entry, err = readPDBx(inputFile)
+	if isStdin {
+		if isPDBx {
+			entry, err = readPDBxFromContent(content)
+		} else {
+			entry, err = readPDBFromContent(content)
+		}
 	} else {
-		entry, err = readPDB(inputFile)
+		if isPDBx {
+			entry, err = readPDBx(inputFile)
+		} else {
+			entry, err = readPDB(inputFile)
+		}
 	}
 
 	if err != nil {
@@ -515,4 +557,78 @@ func writePDBxToWriter(entry *pdbx.Entry, writer *os.File, commandLine string) e
 	}
 
 	return nil
+}
+
+// readAllFromStdin reads all content from stdin
+func readAllFromStdin() ([]byte, error) {
+	return io.ReadAll(os.Stdin)
+}
+
+// detectFormatFromContent detects the format from content
+func detectFormatFromContent(content []byte) (bool, error) {
+	contentStr := string(content)
+
+	// Check for PDBx/mmCIF indicators
+	if strings.Contains(contentStr, "data_") || strings.Contains(contentStr, "loop_") {
+		return true, nil
+	}
+
+	// Check for PDB indicators
+	if strings.Contains(contentStr, "HEADER") || strings.Contains(contentStr, "ATOM") {
+		return false, nil
+	}
+
+	return false, fmt.Errorf("unable to detect file format")
+}
+
+// readPDBFromContent reads a PDB file from content
+func readPDBFromContent(content []byte) (*pdb.Entry, error) {
+	// Create a temporary file to store the content
+	tmpFile, err := os.CreateTemp("", "pdbtk_stdin_*.pdb")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	// Write content to temporary file
+	_, err = tmpFile.Write(content)
+	if err != nil {
+		return nil, err
+	}
+
+	// Close the file so we can read it
+	tmpFile.Close()
+
+	// Read the PDB file
+	return pdb.ReadPDB(tmpFile.Name())
+}
+
+// readPDBxFromContent reads a PDBx file from content
+func readPDBxFromContent(content []byte) (*pdbx.Entry, error) {
+	// Create a temporary file to store the content
+	tmpFile, err := os.CreateTemp("", "pdbtk_stdin_*.cif")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	// Write content to temporary file
+	_, err = tmpFile.Write(content)
+	if err != nil {
+		return nil, err
+	}
+
+	// Close the file so we can read it
+	tmpFile.Close()
+
+	// Read the PDBx file
+	file, err := os.Open(tmpFile.Name())
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	return pdbx.Read(file)
 }

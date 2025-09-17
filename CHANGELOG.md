@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `get` command for downloading PDB files from the RCSB PDB database
+- Support for multiple file formats (pdb, pdb.gz, cif, cif.gz) in the get command
+- Output to stdout option with `--output -` flag
+- Stdin support for `extract` and `extract-seq` commands when no input file is specified
+
 ## [0.1] - 2025-09-17
 
 ### Added
