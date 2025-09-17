@@ -28,3 +28,17 @@ go build -o bin/pdbtk .
 # or
 # make build
 ```
+
+### Building the documentation
+
+```bash
+cd doc
+uv venv
+source .venv/bin/activate
+uv pip install mkdocs mkdocs-material mkdocs-macros-plugin
+
+# To view locally
+# mkdocs serve
+
+mkdocs build
+```

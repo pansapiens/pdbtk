@@ -1,0 +1,133 @@
+# Usage and Examples
+
+## Quick Guide
+
+- **Coordinate extraction**: [extract](#extract-usage)
+- **Sequence extraction**: [extract-seq](#extract-seq-usage)
+- **Other**: [completion](#completion-usage)
+
+## pdbtk Usage
+
+```text
+pdbtk -- a cross-platform, efficient and practical PDB/PDBx/mmCIF structure file manipulation toolkit
+
+Version: 0.1
+Author: Perry
+Source code: https://github.com/perry/pdbtk
+
+pdbtk is a command-line toolkit for manipulating PDB and PDBx/mmCIF structure files.
+It provides various operations for extracting, filtering, and transforming protein structure data.
+
+Usage:
+  pdbtk [command]
+
+Available Commands:
+  extract     Extract chains from a PDB or PDBx/mmCIF file
+  extract-seq Extract sequences from chains in a PDB or PDBx/mmCIF file
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+
+Flags:
+  -h, --help   help for pdbtk
+
+Use "pdbtk [command] --help" for more information about a command.
+```
+
+## extract Usage
+
+```text
+Extract specific chains from a PDB or PDBx/mmCIF structure file.
+The output can be written to a file or stdout (if no output file is specified).
+
+Usage:
+  pdbtk extract [flags] <input_file>
+
+Flags:
+  -c, --chains string   Comma-separated list of chain IDs to extract (required)
+  -f, --format string   Output format: auto, pdb, or cif (default: auto)
+  -h, --help            help for extract
+  -o, --output string   Output file (default: stdout)
+```
+
+### Examples
+
+1. Extract chains A, B, and C to a file
+```bash
+$ pdbtk extract --chains A,B,C --output 1a02_chainABC.pdb 1a02.pdb
+```
+
+2. Extract chains A, B, and C to stdout
+```bash
+$ pdbtk extract --chains A,B,C 1a02.pdb > 1a02_chainABC.pdb
+```
+
+3. Extract from PDBx/mmCIF file
+```bash
+$ pdbtk extract --chains A,B --output 1a02_chainAB.cif 1a02.cif
+```
+
+4. Force output format to PDB
+```bash
+$ pdbtk extract --chains A --format pdb --output 1a02_chainA.pdb 1a02.cif
+```
+
+## extract-seq Usage
+
+```text
+Extract sequences from chains in a PDB or PDBx/mmCIF structure file.
+The output is in FASTA format with sequence IDs in the format: >{pdbfilename_no_dotpdb}_{chain}
+
+If no chains are specified, all chains will be extracted.
+
+Usage:
+  pdbtk extract-seq [flags] <input_file>
+
+Flags:
+  -c, --chains string   Comma-separated list of chain IDs to extract (default: all chains)
+  -h, --help            help for extract-seq
+  -o, --output string   Output file (default: stdout)
+```
+
+### Examples
+
+1. Extract sequences from all chains
+```bash
+$ pdbtk extract-seq 1a02.pdb > 1a02.fasta
+```
+
+2. Extract sequences from specific chains A, B, and C
+```bash
+$ pdbtk extract-seq --chains A,B,C 1a02.pdb > 1a02_chainABC.fasta
+```
+
+3. Extract from PDBx/mmCIF file
+```bash
+$ pdbtk extract-seq --chains A,B --output 1a02_chainAB.fasta 1a02.cif
+```
+
+4. Extract all chains to a file
+```bash
+$ pdbtk extract-seq --output 1a02_all.fasta 1a02.pdb
+```
+
+## completion Usage
+
+```text
+Generate the autocompletion script for the specified shell
+
+Usage:
+  pdbtk completion [command]
+
+Available Commands:
+  bash        Generate the autocompletion script for bash
+  fish        Generate the autocompletion script for fish
+  powershell  Generate the autocompletion script for powershell
+  zsh         Generate the autocompletion script for zsh
+
+Flags:
+  -h, --help   help for completion
+
+Use "pdbtk completion [command] --help" for more information about a command.
+```
+
+See [download.md](download.md#shell-completion) for more details.

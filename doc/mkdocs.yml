@@ -1,0 +1,31 @@
+site_name: pdbtk - PDB file manipulation toolkit
+nav:
+  - Home: index.md
+  - Download: download.md
+  - Usage: usage.md
+
+plugins:
+  - search
+  - macros
+
+theme:
+  name: material
+  palette:
+    primary: light blue
+    accent: light blue
+  icon:
+    logo: material/tools
+  favicon: files/favicon.ico
+  features:
+    - search.suggest
+    - toc.follow
+    #- navigation.tabs
+    #- navigation.tabs.sticky
+
+extra:
+  manifest: manifest.webmanifest
+
+site_url: https://pansapiens.github.io/pdbtk
+repo_url: https://github.com/pansapiens/pdbtk
+site_description: pdbtk - PDB file manipulation toolkit
+site_author: pansapiens

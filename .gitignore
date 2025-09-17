@@ -1,5 +1,6 @@
 .repos/
 bin/
+.venv
 
 # Binaries for programs and plugins
 *.exe
