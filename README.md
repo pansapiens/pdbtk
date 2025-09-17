@@ -4,6 +4,8 @@ A simple PDB structure file manipulation toolkit (in the spirit of `seqtk`, `seq
 
 `pdbtk` (currently) strives to be practical over 100% standards compliant.
 
+Docs: https://pansapiens.github.io/pdbtk/
+
 ## Examples
 
 ```bash
