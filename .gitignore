@@ -1,4 +1,5 @@
 .repos/
+bin/
 
 # Binaries for programs and plugins
 *.exe
@@ -6,8 +7,6 @@
 *.dll
 *.so
 *.dylib
-pdbtk
-pdbtk-*
 
 # Test binary, built with `go test -c`
 *.test

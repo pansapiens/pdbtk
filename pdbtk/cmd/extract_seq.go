@@ -46,7 +46,7 @@ func runExtractSeq(cmd *cobra.Command, args []string) error {
 	inputFile := args[0]
 
 	// Check if input file exists
-	if err := checkFileExists(inputFile); err != nil {
+	if err := CheckFileExists(inputFile); err != nil {
 		return err
 	}
 

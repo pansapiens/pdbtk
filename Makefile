@@ -2,11 +2,12 @@
 
 # Build the pdbtk binary
 build:
-	go build -o pdbtk .
+	mkdir -p bin
+	go build -o bin/pdbtk .
 
 # Clean build artifacts
 clean:
-	rm -f pdbtk
+	rm -f bin/pdbtk
 	rm -f test*.pdb
 
 # Run tests

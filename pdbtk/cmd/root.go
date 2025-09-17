@@ -26,8 +26,8 @@ func init() {
 	rootCmd.AddCommand(extractSeqCmd)
 }
 
-// checkFileExists checks if a file exists and returns an error if it doesn't
-func checkFileExists(filename string) error {
+// CheckFileExists checks if a file exists and returns an error if it doesn't
+func CheckFileExists(filename string) error {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		return fmt.Errorf("file does not exist: %s", filename)
 	}

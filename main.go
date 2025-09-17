@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/perry/pdbtk/cmd"
+	"github.com/perry/pdbtk/pdbtk/cmd"
 )
 
 func main() {

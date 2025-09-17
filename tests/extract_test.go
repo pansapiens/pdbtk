@@ -1,8 +1,10 @@
-package cmd
+package tests
 
 import (
 	"os"
 	"testing"
+
+	"github.com/perry/pdbtk/pdbtk/cmd"
 )
 
 func TestExtractCommand(t *testing.T) {
@@ -26,12 +28,12 @@ END`
 	defer os.Remove("test.pdb")
 
 	// Test file existence check
-	err = checkFileExists("test.pdb")
+	err = cmd.CheckFileExists("test.pdb")
 	if err != nil {
 		t.Errorf("checkFileExists failed for existing file: %v", err)
 	}
 
-	err = checkFileExists("nonexistent.pdb")
+	err = cmd.CheckFileExists("nonexistent.pdb")
 	if err == nil {
 		t.Error("checkFileExists should fail for nonexistent file")
 	}

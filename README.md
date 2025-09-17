@@ -23,7 +23,7 @@ pdbtk extract-seq --chains A,B,C 1a02.pdb >1a02_chainABC.fasta
 ## Building
 
 ```bash
-go build -o pdbtk cmd/main.go
+go build -o bin/pdbtk .
 
 # or
 # make build
