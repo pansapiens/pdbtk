@@ -10,7 +10,7 @@ clean:
 	rm -f bin/pdbtk
 	rm -f test*.pdb
 
-# Run tests
+# Run tests - we exclude test discovery in the 'repos' folder
 test:
 	go test $(shell go list ./... | grep -v /.repos/)
 

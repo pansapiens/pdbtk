@@ -5,6 +5,7 @@
 - **Download PDB files**: [get](#get-usage)
 - **Coordinate extraction**: [extract](#extract-usage)
 - **Sequence extraction**: [extract-seq](#extract-seq-usage)
+- **Chain manipulation**: [rename-chain](#rename-chain-usage), [renumber-residues](#renumber-residues-usage)
 - **Other**: [completion](#completion-usage)
 
 ## pdbtk Usage
@@ -23,11 +24,13 @@ Usage:
   pdbtk [command]
 
 Available Commands:
-  get         Download a PDB file from the RCSB PDB database
-  extract     Extract chains from a PDB file
-  extract-seq Extract sequences from chains in a PDB file
-  completion  Generate the autocompletion script for the specified shell
-  help        Help about any command
+  get               Download a PDB file from the RCSB PDB database
+  extract           Extract chains from a PDB file
+  extract-seq       Extract sequences from chains in a PDB file
+  rename-chain      Rename a chain in a PDB file
+  renumber-residues Renumber residues in a PDB file
+  completion        Generate the autocompletion script for the specified shell
+  help              Help about any command
 
 Flags:
   -h, --help   help for pdbtk
@@ -175,3 +178,89 @@ Use "pdbtk completion [command] --help" for more information about a command.
 ```
 
 See [download.md](download.md#shell-completion) for more details.
+
+## rename-chain Usage
+
+```text
+Rename a chain in a PDB structure file.
+The chain ID must be a single character. The new chain ID must also be a single character.
+If the specified chain does not exist, the command will exit with an error.
+If the new chain ID already exists, a warning will be logged but the operation will continue.
+
+Usage:
+  pdbtk rename-chain [flags] <chain_id> [input_file]
+
+Flags:
+  -h, --help            help for rename-chain
+  -o, --output string   Output file (default: stdout)
+  -t, --to string       New chain ID (required)
+```
+
+### Examples
+
+1. Rename chain A to B
+```bash
+$ pdbtk rename-chain A --to B 1a02.pdb
+```
+
+2. Rename chain A to B and output to a file
+```bash
+$ pdbtk rename-chain A --to B --output 1a02_renamed.pdb 1a02.pdb
+```
+
+3. Rename chain A to B from stdin
+```bash
+$ cat 1a02.pdb | pdbtk rename-chain A --to B
+```
+
+## renumber-residues Usage
+
+```text
+Renumber residues in a PDB structure file starting from a specified number.
+By default, this preserves gaps in the residue sequence but offsets the numbering.
+Use --force-sequential to make all residues sequential without gaps.
+Use --exclude-zero to skip residue number zero when using negative start values.
+
+Usage:
+  pdbtk renumber-residues [flags] [input_file]
+
+Flags:
+  -s, --start int          Starting residue number (can be negative) (default 1)
+  -c, --chain string       Chain ID to renumber (default: all chains)
+  -z, --exclude-zero       Skip residue number zero when using negative start values
+  -f, --force-sequential   Force sequential numbering without gaps
+  -h, --help               help for renumber-residues
+  -o, --output string      Output file (default: stdout)
+```
+
+### Examples
+
+1. Renumber all residues starting from 1
+```bash
+$ pdbtk renumber-residues --start 1 1a02.pdb
+```
+
+2. Renumber residues in chain A starting from 1
+```bash
+$ pdbtk renumber-residues --start 1 --chain A 1a02.pdb
+```
+
+3. Force sequential numbering starting from 1
+```bash
+$ pdbtk renumber-residues --start 1 --force-sequential 1a02.pdb
+```
+
+4. Renumber starting from negative number
+```bash
+$ pdbtk renumber-residues --start -10 1a02.pdb
+```
+
+5. Renumber starting from -1, skipping zero (goes -1, 1, 2, 3...)
+```bash
+$ pdbtk renumber-residues --start -1 --exclude-zero 1a02.pdb
+```
+
+6. Renumber and output to a file
+```bash
+$ pdbtk renumber-residues --start 1 --output 1a02_renumbered.pdb 1a02.pdb
+```

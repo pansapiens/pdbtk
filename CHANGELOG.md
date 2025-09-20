@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `get` command for downloading PDB files from the RCSB PDB database
+- `rename-chain` command for renaming chains in PDB files
+- `renumber-residues` command for renumbering residues with gap preservation or sequential numbering
 - Output to stdout option with `--output -` flag
 - Stdin support for `extract` and `extract-seq` commands when no input file is specified
 

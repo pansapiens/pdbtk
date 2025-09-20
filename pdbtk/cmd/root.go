@@ -25,6 +25,8 @@ func init() {
 	rootCmd.AddCommand(extractCmd)
 	rootCmd.AddCommand(extractSeqCmd)
 	rootCmd.AddCommand(getCmd)
+	rootCmd.AddCommand(renameChainCmd)
+	rootCmd.AddCommand(renumberResiduesCmd)
 }
 
 // CheckFileExists checks if a file exists and returns an error if it doesn't

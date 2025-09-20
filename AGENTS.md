@@ -25,6 +25,7 @@ After any bugfix, change in behaviour or an notable new feature has been success
    - https://www.wwpdb.org/documentation/file-format-content/format33/v3.3.html
    - https://www.wwpdb.org/documentation/file-format-content/format33/sect9.html
    - https://www.wwpdb.org/documentation/file-format-content/format33/sect4.html
+   - Documented quirks in the PDB files found in the wild: https://proteopedia.org/wiki/index.php/Unusual_sequence_numbering
  - For the PDBx/mmCIF format, refer to:
    - https://mmcif.wwpdb.org/docs/user-guide/guide.html
    - https://pdb101.rcsb.org/learn/guide-to-understanding-pdb-data/beginner%E2%80%99s-guide-to-pdbx-mmcif
