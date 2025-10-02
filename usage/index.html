@@ -1,0 +1,1061 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="pdbtk - PDB file manipulation toolkit">
+      
+      
+        <meta name="author" content="pansapiens">
+      
+      
+        <link rel="canonical" href="https://pansapiens.github.io/pdbtk/usage/">
+      
+      
+        <link rel="prev" href="../download/">
+      
+      
+      
+      <link rel="icon" href="../files/favicon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.21">
+    
+    
+      
+        <title>Usage - pdbtk - PDB file manipulation toolkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.2a3383ac.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="light-blue" data-md-color-accent="light-blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#usage-and-examples" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="pdbtk - PDB file manipulation toolkit" class="md-header__button md-logo" aria-label="pdbtk - PDB file manipulation toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m21.71 20.29-1.42 1.42a1 1 0 0 1-1.41 0L7 9.85A3.8 3.8 0 0 1 6 10a4 4 0 0 1-3.78-5.3l2.54 2.54.53-.53 1.42-1.42.53-.53L4.7 2.22A4 4 0 0 1 10 6a3.8 3.8 0 0 1-.15 1l11.86 11.88a1 1 0 0 1 0 1.41M2.29 18.88a1 1 0 0 0 0 1.41l1.42 1.42a1 1 0 0 0 1.41 0l5.47-5.46-2.83-2.83M20 2l-4 2v2l-2.17 2.17 2 2L18 8h2l2-4Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            pdbtk - PDB file manipulation toolkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Usage
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pansapiens/pdbtk" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="pdbtk - PDB file manipulation toolkit" class="md-nav__button md-logo" aria-label="pdbtk - PDB file manipulation toolkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m21.71 20.29-1.42 1.42a1 1 0 0 1-1.41 0L7 9.85A3.8 3.8 0 0 1 6 10a4 4 0 0 1-3.78-5.3l2.54 2.54.53-.53 1.42-1.42.53-.53L4.7 2.22A4 4 0 0 1 10 6a3.8 3.8 0 0 1-.15 1l11.86 11.88a1 1 0 0 1 0 1.41M2.29 18.88a1 1 0 0 0 0 1.41l1.42 1.42a1 1 0 0 0 1.41 0l5.47-5.46-2.83-2.83M20 2l-4 2v2l-2.17 2.17 2 2L18 8h2l2-4Z"/></svg>
+
+    </a>
+    pdbtk - PDB file manipulation toolkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pansapiens/pdbtk" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../download/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Download
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Usage
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Usage
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Guide
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pdbtk-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      pdbtk Usage
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      get Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extract-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      extract Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="extract Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extract-seq-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      extract-seq Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="extract-seq Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      version Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="version Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#completion-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      completion Usage
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rename-chain-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      rename-chain Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="rename-chain Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#renumber-residues-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      renumber-residues Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="renumber-residues Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Guide
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pdbtk-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      pdbtk Usage
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      get Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extract-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      extract Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="extract Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extract-seq-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      extract-seq Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="extract-seq Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      version Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="version Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#completion-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      completion Usage
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rename-chain-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      rename-chain Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="rename-chain Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#renumber-residues-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      renumber-residues Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="renumber-residues Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="usage-and-examples">Usage and Examples</h1>
+<h2 id="quick-guide">Quick Guide</h2>
+<ul>
+<li><strong>Download PDB files</strong>: <a href="#get-usage">get</a></li>
+<li><strong>Coordinate extraction</strong>: <a href="#extract-usage">extract</a></li>
+<li><strong>Sequence extraction</strong>: <a href="#extract-seq-usage">extract-seq</a></li>
+<li><strong>Chain manipulation</strong>: <a href="#rename-chain-usage">rename-chain</a>, <a href="#renumber-residues-usage">renumber-residues</a></li>
+<li><strong>Version info</strong>: <a href="#version-usage">version</a></li>
+<li><strong>Other</strong>: <a href="#completion-usage">completion</a></li>
+</ul>
+<h2 id="pdbtk-usage">pdbtk Usage</h2>
+<pre><code class="language-text">pdbtk -- a cross-platform, efficient and practical PDB structure file manipulation toolkit
+
+Version: 0.1.1
+Author: Perry
+Source code: https://github.com/perry/pdbtk
+
+pdbtk is a command-line toolkit for manipulating PDB structure files.
+It provides various operations for extracting, filtering, and transforming protein structure data.
+
+Usage:
+  pdbtk [command]
+
+Available Commands:
+  get               Download a PDB file from the RCSB PDB database
+  extract           Extract chains from a PDB file
+  extract-seq       Extract sequences from chains in a PDB file
+  rename-chain      Rename a chain in a PDB file
+  renumber-residues Renumber residues in a PDB file
+  version           Print the version number
+  completion        Generate the autocompletion script for the specified shell
+  help              Help about any command
+
+Flags:
+  -h, --help   help for pdbtk
+
+Use &quot;pdbtk [command] --help&quot; for more information about a command.
+</code></pre>
+<h2 id="get-usage">get Usage</h2>
+<pre><code class="language-text">Download a PDB file from the RCSB PDB database using the PDB code.
+The file will be downloaded from https://files.rcsb.org/download/{pdb_code}.{format}
+
+By default, the file is saved as {pdb_code}.pdb in the current directory.
+Use --output to specify a different filename or &quot;-&quot; to output to stdout.
+Use --format to specify the file format (pdb, pdb.gz).
+
+Usage:
+  pdbtk get [flags] &lt;pdb_code&gt;
+
+Flags:
+  -f, --format string   File format: pdb, pdb.gz (default: pdb)
+  -h, --help            help for get
+  -o, --output string   Output file (default: {pdb_code}.{format}, use '-' for stdout)
+</code></pre>
+<h3 id="examples">Examples</h3>
+<p>Download 1A02 as PDB file</p>
+<pre><code class="language-bash">$ pdbtk get 1A02
+</code></pre>
+<p>Download as compressed PDB file</p>
+<pre><code class="language-bash">$ pdbtk get --format pdb.gz 1A02
+</code></pre>
+<p>Download to stdout and view the first 10 line with <code>head</code></p>
+<pre><code class="language-bash">$ pdbtk get --output - 1A02 | head
+</code></pre>
+<p>Download to specific filename</p>
+<pre><code class="language-bash">$ pdbtk get --output my_structure.pdb 1A02
+</code></pre>
+<p>Download the gzipped PDB, uncompress it and extract chain B in a single command</p>
+<pre><code class="language-bash">$ pdbtk get --format pdb.gz -o - 1A02 | gunzip -c - | pdbtk extract --chains B
+</code></pre>
+<h2 id="extract-usage">extract Usage</h2>
+<pre><code class="language-text">Extract specific chains from a PDB structure file.
+The output can be written to a file or stdout (if no output file is specified).
+If no input file is specified, reads from stdin.
+
+Usage:
+  pdbtk extract [flags] [input_file]
+
+Flags:
+  -c, --chains string   Comma-separated list of chain IDs to extract (required)
+      --chain string    Alias for --chains
+  -h, --help            help for extract
+  -o, --output string   Output file (default: stdout)
+      --altloc string   Filter by alternative location (ALTLOC) identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist
+</code></pre>
+<h3 id="examples_1">Examples</h3>
+<ol>
+<li>Extract chains A, B, and C to a file</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk extract --chains A,B,C --output 1a02_chainABC.pdb 1a02.pdb
+</code></pre>
+<ol>
+<li>Extract chains A, B, and C to stdout</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk extract --chains A,B,C 1a02.pdb &gt; 1a02_chainABC.pdb
+</code></pre>
+<ol>
+<li>Extract from stdin</li>
+</ol>
+<pre><code class="language-bash">$ cat 1a02.pdb | pdbtk extract --chains A,B,C
+</code></pre>
+<ol>
+<li>Extract only ALTLOC B atoms</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk extract --chains A --altloc B 1a02.pdb
+</code></pre>
+<ol>
+<li>Extract first ALTLOC when duplicates exist</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk extract --chains A --altloc first 1a02.pdb
+</code></pre>
+<ol>
+<li>Extract using --chain alias</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk extract --chain A,B,C --output 1a02_chainABC.pdb 1a02.pdb
+</code></pre>
+<h2 id="extract-seq-usage">extract-seq Usage</h2>
+<pre><code class="language-text">Extract sequences from chains in a PDB structure file.
+The output is in FASTA format with sequence IDs in the format: &gt;{pdbfilename_no_dotpdb}_{chain}
+
+If no chains are specified, all chains will be extracted.
+If no input file is specified, reads from stdin.
+
+Usage:
+  pdbtk extract-seq [flags] [input_file]
+
+Flags:
+  -c, --chains string   Comma-separated list of chain IDs to extract (default: all chains)
+      --chain string    Alias for --chains
+  -h, --help            help for extract-seq
+  -o, --output string   Output file (default: stdout)
+      --seqres          Use SEQRES records instead of ATOM records
+</code></pre>
+<h3 id="examples_2">Examples</h3>
+<ol>
+<li>Extract sequences from all chains</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk extract-seq 1a02.pdb &gt;1a02.fasta
+</code></pre>
+<ol>
+<li>Extract sequences from specific chains A, B, and C</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk extract-seq --chains A,B,C 1a02.pdb &gt;1a02_chainABC.fasta
+</code></pre>
+<ol>
+<li>Extract all chains to a file</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk extract-seq --output 1a02_all.fasta 1a02.pdb
+</code></pre>
+<ol>
+<li>Extract from stdin</li>
+</ol>
+<pre><code class="language-bash">$ cat 1a02.pdb | pdbtk extract-seq --chains B,C
+</code></pre>
+<ol>
+<li>Extract sequences using SEQRES records</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk extract-seq --seqres 1a02.pdb
+</code></pre>
+<ol>
+<li>Extract sequences using --chain alias</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk extract-seq --chain A,B 1a02.pdb &gt; 1a02_chainAB.fasta
+</code></pre>
+<ol>
+<li>Extract sequences from multiple PDB files in the current directory</li>
+</ol>
+<pre><code class="language-bash">$ find . -name &quot;*.pdb&quot; -exec pdbtk extract-seq {} \; &gt; myseqs.fasta
+</code></pre>
+<p><strong>Note on sequence extraction:</strong>
+- By default, <code>extract-seq</code> extracts sequences from ATOM records with gap characters (<code>-</code>) inserted for missing residue numbers.
+- Use <code>--seqres</code> to extract from SEQRES records instead (which contain the full sequence including regions not present in ATOM records).
+- If <code>--seqres</code> is specified but no SEQRES records are present, a warning is printed and no sequence is returned.</p>
+<h2 id="version-usage">version Usage</h2>
+<pre><code class="language-text">Print the version number of pdbtk.
+
+Usage:
+  pdbtk version [flags]
+
+Flags:
+  -h, --help   help for version
+</code></pre>
+<h3 id="examples_3">Examples</h3>
+<p>Print the current version</p>
+<pre><code class="language-bash">$ pdbtk version
+0.1.1
+</code></pre>
+<h2 id="completion-usage">completion Usage</h2>
+<pre><code class="language-text">Generate the autocompletion script for the specified shell
+
+Usage:
+  pdbtk completion [command]
+
+Available Commands:
+  bash        Generate the autocompletion script for bash
+  fish        Generate the autocompletion script for fish
+  powershell  Generate the autocompletion script for powershell
+  zsh         Generate the autocompletion script for zsh
+
+Flags:
+  -h, --help   help for completion
+
+Use &quot;pdbtk completion [command] --help&quot; for more information about a command.
+</code></pre>
+<p>See <a href="../download/#shell-completion">download.md</a> for more details.</p>
+<h2 id="rename-chain-usage">rename-chain Usage</h2>
+<pre><code class="language-text">Rename a chain in a PDB structure file.
+The chain ID must be a single character. The new chain ID must also be a single character.
+If the specified chain does not exist, the command will exit with an error.
+If the new chain ID already exists, a warning will be logged but the operation will continue.
+
+Usage:
+  pdbtk rename-chain [flags] &lt;chain_id&gt; [input_file]
+
+Flags:
+  -h, --help            help for rename-chain
+  -o, --output string   Output file (default: stdout)
+  -t, --to string       New chain ID (required)
+</code></pre>
+<h3 id="examples_4">Examples</h3>
+<ol>
+<li>Rename chain A to B</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk rename-chain A --to B 1a02.pdb
+</code></pre>
+<ol>
+<li>Rename chain A to B and output to a file</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk rename-chain A --to B --output 1a02_renamed.pdb 1a02.pdb
+</code></pre>
+<ol>
+<li>Rename chain A to B from stdin</li>
+</ol>
+<pre><code class="language-bash">$ cat 1a02.pdb | pdbtk rename-chain A --to B
+</code></pre>
+<h2 id="renumber-residues-usage">renumber-residues Usage</h2>
+<pre><code class="language-text">Renumber residues in a PDB structure file starting from a specified number.
+By default, this preserves gaps in the residue sequence but offsets the numbering.
+Use --force-sequential to make all residues sequential without gaps.
+Use --exclude-zero to skip residue number zero when using negative start values.
+
+Usage:
+  pdbtk renumber-residues [flags] [input_file]
+
+Flags:
+  -s, --start int          Starting residue number (can be negative) (default 1)
+  -c, --chain string       Chain ID to renumber (default: all chains)
+  -z, --exclude-zero       Skip residue number zero when using negative start values
+  -f, --force-sequential   Force sequential numbering without gaps
+  -h, --help               help for renumber-residues
+  -o, --output string      Output file (default: stdout)
+</code></pre>
+<h3 id="examples_5">Examples</h3>
+<ol>
+<li>Renumber all residues starting from 1</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk renumber-residues --start 1 1a02.pdb
+</code></pre>
+<ol>
+<li>Renumber residues in chain A starting from 1</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk renumber-residues --start 1 --chain A 1a02.pdb
+</code></pre>
+<ol>
+<li>Force sequential numbering starting from 1</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk renumber-residues --start 1 --force-sequential 1a02.pdb
+</code></pre>
+<ol>
+<li>Renumber starting from negative number</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk renumber-residues --start -10 1a02.pdb
+</code></pre>
+<ol>
+<li>Renumber starting from -1, skipping zero (goes -1, 1, 2, 3...)</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk renumber-residues --start -1 --exclude-zero 1a02.pdb
+</code></pre>
+<ol>
+<li>Renumber and output to a file</li>
+</ol>
+<pre><code class="language-bash">$ pdbtk renumber-residues --start 1 --output 1a02_renumbered.pdb 1a02.pdb
+</code></pre>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["search.suggest", "toc.follow"], "search": "../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>
