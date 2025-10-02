@@ -14,6 +14,7 @@ import (
 var (
 	seqChains string
 	seqOutput string
+	useSeqRes bool
 )
 
 var extractSeqCmd = &cobra.Command{
@@ -44,6 +45,7 @@ Examples:
 func init() {
 	extractSeqCmd.Flags().StringVarP(&seqChains, "chains", "c", "", "Comma-separated list of chain IDs to extract (default: all chains)")
 	extractSeqCmd.Flags().StringVarP(&seqOutput, "output", "o", "", "Output file (default: stdout)")
+	extractSeqCmd.Flags().BoolVar(&useSeqRes, "seqres", false, "Use SEQRES records instead of ATOM records")
 }
 
 func runExtractSeq(cmd *cobra.Command, args []string) error {
@@ -104,7 +106,7 @@ func runExtractSeq(cmd *cobra.Command, args []string) error {
 	}
 
 	// Extract sequences
-	sequences, err := extractSequencesPDB(entry, chainList)
+	sequences, err := extractSequencesPDB(entry, chainList, useSeqRes)
 	if err != nil {
 		return fmt.Errorf("failed to extract sequences: %v", err)
 	}
@@ -124,13 +126,13 @@ func runExtractSeq(cmd *cobra.Command, args []string) error {
 	}
 }
 
-func extractSequencesPDB(entry *pdb.Entry, chainList []string) (map[string]string, error) {
+func extractSequencesPDB(entry *pdb.Entry, chainList []string, useSeqRes bool) (map[string]string, error) {
 	sequences := make(map[string]string)
 
 	// If no chains specified, extract all chains
 	if len(chainList) == 0 {
 		for _, chain := range entry.Chains {
-			sequence := extractChainSequence(chain)
+			sequence := extractChainSequence(chain, useSeqRes)
 			if sequence != "" {
 				sequences[string(chain.Ident)] = sequence
 			}
@@ -146,7 +148,7 @@ func extractSequencesPDB(entry *pdb.Entry, chainList []string) (map[string]strin
 
 		for _, chain := range entry.Chains {
 			if validChains[chain.Ident] {
-				sequence := extractChainSequence(chain)
+				sequence := extractChainSequence(chain, useSeqRes)
 				if sequence != "" {
 					sequences[string(chain.Ident)] = sequence
 				}
@@ -157,63 +159,50 @@ func extractSequencesPDB(entry *pdb.Entry, chainList []string) (map[string]strin
 	return sequences, nil
 }
 
-func extractChainSequence(chain *pdb.Chain) string {
-	// Use the sequence from the chain directly
-	var sequence strings.Builder
-	for _, residue := range chain.Sequence {
-		sequence.WriteByte(byte(residue))
+func extractChainSequence(chain *pdb.Chain, useSeqRes bool) string {
+	// If --seqres flag is set, only use SEQRES records
+	if useSeqRes {
+		if len(chain.Sequence) > 0 {
+			var sequence strings.Builder
+			for _, residue := range chain.Sequence {
+				sequence.WriteByte(byte(residue))
+			}
+			return sequence.String()
+		}
+		// No SEQRES available - warn the user
+		fmt.Fprintf(os.Stderr, "Warning: --seqres flag specified but no SEQRES records found for chain %c\n", chain.Ident)
+		return ""
 	}
-	return sequence.String()
-}
 
-func aminoAcidToLetter(residueName string) byte {
-	// Map 3-letter amino acid codes to 1-letter codes
-	switch strings.ToUpper(residueName) {
-	case "ALA":
-		return 'A'
-	case "ARG":
-		return 'R'
-	case "ASN":
-		return 'N'
-	case "ASP":
-		return 'D'
-	case "CYS":
-		return 'C'
-	case "GLU":
-		return 'E'
-	case "GLN":
-		return 'Q'
-	case "GLY":
-		return 'G'
-	case "HIS":
-		return 'H'
-	case "ILE":
-		return 'I'
-	case "LEU":
-		return 'L'
-	case "LYS":
-		return 'K'
-	case "MET":
-		return 'M'
-	case "PHE":
-		return 'F'
-	case "PRO":
-		return 'P'
-	case "SER":
-		return 'S'
-	case "THR":
-		return 'T'
-	case "TRP":
-		return 'W'
-	case "TYR":
-		return 'Y'
-	case "VAL":
-		return 'V'
-	case "UNK":
-		return 'X'
-	default:
-		return 'X' // Unknown amino acid
+	// Default behavior: extract sequence from ATOM records with gap handling
+	if len(chain.Models) == 0 {
+		return ""
 	}
+
+	// Use the first model
+	model := chain.Models[0]
+	if len(model.Residues) == 0 {
+		return ""
+	}
+
+	var sequence strings.Builder
+	prevResNum := model.Residues[0].SequenceNum - 1
+
+	for _, residue := range model.Residues {
+		// Add gap characters for missing residues
+		gap := residue.SequenceNum - prevResNum - 1
+		if gap > 0 {
+			for i := 0; i < gap; i++ {
+				sequence.WriteByte('-')
+			}
+		}
+
+		// residue.Name is already a single-letter code (seq.Residue type is a byte)
+		sequence.WriteByte(byte(residue.Name))
+		prevResNum = residue.SequenceNum
+	}
+
+	return sequence.String()
 }
 
 func writeFASTAToWriter(sequences map[string]string, writer io.Writer, inputFile string) error {

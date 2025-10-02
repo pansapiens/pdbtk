@@ -98,6 +98,7 @@ Flags:
   -c, --chains string   Comma-separated list of chain IDs to extract (required)
   -h, --help            help for extract
   -o, --output string   Output file (default: stdout)
+      --altloc string   Filter by alternative location (ALTLOC) identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist
 ```
 
 ### Examples
@@ -117,6 +118,16 @@ $ pdbtk extract --chains A,B,C 1a02.pdb > 1a02_chainABC.pdb
 $ cat 1a02.pdb | pdbtk extract --chains A,B,C
 ```
 
+4. Extract only ALTLOC B atoms
+```bash
+$ pdbtk extract --chains A --altloc B 1a02.pdb
+```
+
+5. Extract first ALTLOC when duplicates exist
+```bash
+$ pdbtk extract --chains A --altloc first 1a02.pdb
+```
+
 ## extract-seq Usage
 
 ```text
@@ -133,6 +144,7 @@ Flags:
   -c, --chains string   Comma-separated list of chain IDs to extract (default: all chains)
   -h, --help            help for extract-seq
   -o, --output string   Output file (default: stdout)
+      --seqres          Use SEQRES records instead of ATOM records
 ```
 
 ### Examples
@@ -156,6 +168,16 @@ $ pdbtk extract-seq --output 1a02_all.fasta 1a02.pdb
 ```bash
 $ cat 1a02.pdb | pdbtk extract-seq --chains B,C
 ```
+
+5. Extract sequences using SEQRES records
+```bash
+$ pdbtk extract-seq --seqres 1a02.pdb
+```
+
+**Note on sequence extraction:**
+- By default, `extract-seq` extracts sequences from ATOM records with gap characters (`-`) inserted for missing residue numbers.
+- Use `--seqres` to extract from SEQRES records instead (which contain the full sequence including regions not present in ATOM records).
+- If `--seqres` is specified but no SEQRES records are present, a warning is printed and no sequence is returned.
 
 ## completion Usage
 

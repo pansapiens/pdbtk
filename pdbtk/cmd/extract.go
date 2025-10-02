@@ -14,6 +14,7 @@ import (
 var (
 	chains string
 	output string
+	altloc string
 )
 
 var extractCmd = &cobra.Command{
@@ -31,16 +32,21 @@ Examples:
   pdbtk extract --chains A,B,C 1a02.pdb > 1a02_chainABC.pdb
 
   # Extract from stdin
-  cat 1a02.pdb | pdbtk extract --chains A,B,C`,
+  cat 1a02.pdb | pdbtk extract --chains A,B,C
+
+  # Extract only ALTLOC A atoms
+  pdbtk extract --chains A --altloc A 1a02.pdb
+
+  # Extract first ALTLOC when duplicates exist
+  pdbtk extract --chains A --altloc first 1a02.pdb`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runExtract,
 }
 
 func init() {
-	extractCmd.Flags().StringVarP(&chains, "chains", "c", "", "Comma-separated list of chain IDs to extract (required)")
+	extractCmd.Flags().StringVarP(&chains, "chains", "c", "", "Comma-separated list of chain IDs to extract")
 	extractCmd.Flags().StringVarP(&output, "output", "o", "", "Output file (default: stdout)")
-
-	extractCmd.MarkFlagRequired("chains")
+	extractCmd.Flags().StringVar(&altloc, "altloc", "", "Filter by ALTLOC identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist")
 }
 
 func runExtract(cmd *cobra.Command, args []string) error {
@@ -72,35 +78,65 @@ func runExtract(cmd *cobra.Command, args []string) error {
 		isStdin = true
 	}
 
+	// Validate that at least one of --chains or --altloc is specified
+	if chains == "" && altloc == "" {
+		return fmt.Errorf("at least one of --chains or --altloc must be specified")
+	}
+
 	// Parse chain IDs
-	chainList := strings.Split(chains, ",")
-	for i, chain := range chainList {
-		chainList[i] = strings.TrimSpace(chain)
-		if len(chainList[i]) != 1 {
-			return fmt.Errorf("invalid chain ID: %s (must be single character)", chainList[i])
+	var chainList []string
+	if chains != "" {
+		chainList = strings.Split(chains, ",")
+		for i, chain := range chainList {
+			chainList[i] = strings.TrimSpace(chain)
+			if len(chainList[i]) != 1 {
+				return fmt.Errorf("invalid chain ID: %s (must be single character)", chainList[i])
+			}
 		}
 	}
 
-	// Read the PDB file
+	// Read the PDB file with ALTLOC support
 	var entry *pdb.Entry
+	var altLocList []byte
 	var err error
 	if isStdin {
 		content, err := readAllFromStdin()
 		if err != nil {
 			return fmt.Errorf("failed to read from stdin: %v", err)
 		}
-		entry, err = readPDBFromContent(content)
+		extendedEntry, err := ReadPDBWithAltLocFromContent(content, "")
+		if err != nil {
+			return fmt.Errorf("failed to read PDB file: %v", err)
+		}
+		entry = extendedEntry.Entry
+		altLocList = extendedEntry.AltLocList
 	} else {
-		entry, err = readPDB(inputFile)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to read PDB file: %v", err)
+		extendedEntry, err := ReadPDBWithAltLoc(inputFile)
+		if err != nil {
+			return fmt.Errorf("failed to read PDB file: %v", err)
+		}
+		entry = extendedEntry.Entry
+		altLocList = extendedEntry.AltLocList
 	}
 
-	// Extract the specified chains
-	extractedChains, err := extractChainsPDB(entry, chainList)
-	if err != nil {
-		return fmt.Errorf("failed to extract chains: %v", err)
+	// Extract the specified chains (if specified)
+	var extractedChains *pdb.Entry
+	if len(chainList) > 0 {
+		extractedChains, altLocList, err = ExtractChainsPDB(entry, chainList, altLocList)
+		if err != nil {
+			return fmt.Errorf("failed to extract chains: %v", err)
+		}
+	} else {
+		// No chain filtering, use all chains
+		extractedChains = entry
+	}
+
+	// Apply ALTLOC filtering if specified
+	if altloc != "" {
+		extractedChains, altLocList, err = filterByAltLoc(extractedChains, altLocList, altloc)
+		if err != nil {
+			return fmt.Errorf("failed to filter by ALTLOC: %v", err)
+		}
 	}
 
 	// Build the full command line
@@ -109,7 +145,7 @@ func runExtract(cmd *cobra.Command, args []string) error {
 	// Write the output
 	if output == "" || output == "-" {
 		// Write to stdout
-		return writePDBToWriter(extractedChains, os.Stdout, commandLine)
+		return writePDBToWriterWithAltLoc(extractedChains, altLocList, os.Stdout, commandLine)
 	} else {
 		// Write to file
 		file, err := os.Create(output)
@@ -117,7 +153,7 @@ func runExtract(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to create output file: %v", err)
 		}
 		defer file.Close()
-		return writePDBToWriter(extractedChains, file, commandLine)
+		return writePDBToWriterWithAltLoc(extractedChains, altLocList, file, commandLine)
 	}
 }
 
@@ -142,7 +178,7 @@ func readPDBFromContent(content []byte) (*pdb.Entry, error) {
 	return pdb.ReadPDB(tmpfile.Name())
 }
 
-func extractChainsPDB(entry *pdb.Entry, chainList []string) (*pdb.Entry, error) {
+func ExtractChainsPDB(entry *pdb.Entry, chainList []string, altLocList []byte) (*pdb.Entry, []byte, error) {
 	// Create a new entry with only the specified chains
 	newEntry := &pdb.Entry{
 		Path:   entry.Path,
@@ -160,210 +196,146 @@ func extractChainsPDB(entry *pdb.Entry, chainList []string) (*pdb.Entry, error) 
 		}
 	}
 
-	// Filter chains
+	// Filter chains and corresponding ALTLOC information
+	newAltLocList := make([]byte, 0)
+	atomIndex := 0
+
 	for _, chain := range entry.Chains {
-		if validChains[chain.Ident] {
-			newEntry.Chains = append(newEntry.Chains, chain)
+		// Count atoms in this chain
+		atomCount := 0
+		for _, model := range chain.Models {
+			for _, residue := range model.Residues {
+				atomCount += len(residue.Atoms)
+			}
 		}
+
+		if validChains[chain.Ident] {
+			// Include this chain
+			newEntry.Chains = append(newEntry.Chains, chain)
+			// Copy the corresponding ALTLOC entries
+			if altLocList != nil && atomIndex+atomCount <= len(altLocList) {
+				newAltLocList = append(newAltLocList, altLocList[atomIndex:atomIndex+atomCount]...)
+			}
+		}
+		atomIndex += atomCount
 	}
 
-	return newEntry, nil
+	return newEntry, newAltLocList, nil
 }
 
-func writePDBToWriter(entry *pdb.Entry, writer io.Writer, commandLine string) error {
-	// Write header
-	fmt.Fprintf(writer, "HEADER    %s\n", entry.IdCode)
-	fmt.Fprintf(writer, "REMARK   1 GENERATED BY PDBTK\n")
-	fmt.Fprintf(writer, "REMARK   1 COMMAND: %s\n", commandLine)
-	fmt.Fprintf(writer, "REMARK   1\n")
-
-	// Check if any chain has multiple models (ensemble) to determine if we need MODEL/ENDMDL records
-	hasMultipleModels := false
-	for _, chain := range entry.Chains {
-		if len(chain.Models) > 1 {
-			hasMultipleModels = true
-			break
-		}
+// filterByAltLoc filters atoms based on ALTLOC criteria
+func filterByAltLoc(entry *pdb.Entry, altLocList []byte, altlocFilter string) (*pdb.Entry, []byte, error) {
+	// Create a new entry with filtered atoms
+	filteredEntry := &pdb.Entry{
+		Path:   entry.Path,
+		IdCode: entry.IdCode,
+		Chains: make([]*pdb.Chain, 0),
+		Scop:   entry.Scop,
+		Cath:   entry.Cath,
 	}
 
-	atomSerial := 1
+	newAltLocList := make([]byte, 0)
+	atomIndex := 0
+
 	for _, chain := range entry.Chains {
+		newChain := &pdb.Chain{
+			Entry:    filteredEntry,
+			Ident:    chain.Ident,
+			SeqType:  chain.SeqType,
+			Sequence: chain.Sequence,
+			Models:   make([]*pdb.Model, 0),
+			Missing:  chain.Missing,
+		}
+
 		for _, model := range chain.Models {
-			// Only output MODEL record if we have multiple models (ensemble)
-			if hasMultipleModels {
-				fmt.Fprintf(writer, "MODEL     %4d\n", model.Num)
+			newModel := &pdb.Model{
+				Entry:    filteredEntry,
+				Chain:    newChain,
+				Num:      model.Num,
+				Residues: make([]*pdb.Residue, 0),
 			}
 
 			for _, residue := range model.Residues {
+				newResidue := &pdb.Residue{
+					Name:          residue.Name,
+					SequenceNum:   residue.SequenceNum,
+					InsertionCode: residue.InsertionCode,
+					Atoms:         make([]pdb.Atom, 0),
+				}
+
+				// Group atoms by name to detect duplicates
+				type atomWithIndex struct {
+					atom   pdb.Atom
+					index  int
+					altLoc byte
+				}
+				atomGroups := make(map[string][]atomWithIndex)
+
+				// Group atoms by name
 				for _, atom := range residue.Atoms {
-					recordType := "ATOM  "
-					if atom.Het {
-						recordType = "HETATM"
+					var altLoc byte = ' '
+					if atomIndex < len(altLocList) {
+						altLoc = altLocList[atomIndex]
 					}
-					// Handle insertion code - use space if it's null byte
-					insertionCode := residue.InsertionCode
-					if insertionCode == 0 {
-						insertionCode = ' '
+					atomGroups[atom.Name] = append(atomGroups[atom.Name], atomWithIndex{
+						atom:   atom,
+						index:  atomIndex,
+						altLoc: altLoc,
+					})
+					atomIndex++
+				}
+
+				// Apply ALTLOC filtering
+				for _, group := range atomGroups {
+					if altlocFilter == "first" {
+						// Take the first ALTLOC when duplicates exist
+						if len(group) > 1 {
+							// Find the first atom with a non-space ALTLOC, or take the first atom
+							selectedIdx := 0
+							for i, atomInfo := range group {
+								if atomInfo.altLoc != ' ' {
+									selectedIdx = i
+									break
+								}
+							}
+							newResidue.Atoms = append(newResidue.Atoms, group[selectedIdx].atom)
+							newAltLocList = append(newAltLocList, group[selectedIdx].altLoc)
+						} else {
+							// Only one atom, keep it
+							newResidue.Atoms = append(newResidue.Atoms, group[0].atom)
+							newAltLocList = append(newAltLocList, group[0].altLoc)
+						}
+					} else {
+						// Filter by specific ALTLOC identifier
+						targetAltLoc := altlocFilter[0]
+						for _, atomInfo := range group {
+							if atomInfo.altLoc == targetAltLoc || atomInfo.altLoc == ' ' {
+								newResidue.Atoms = append(newResidue.Atoms, atomInfo.atom)
+								newAltLocList = append(newAltLocList, atomInfo.altLoc)
+							}
+						}
 					}
+				}
 
-					formattedAtomName := formatAtomName(atom.Name)
-
-					fmt.Fprintf(writer, "%-6s%5d %s%c%3s %c%4d%c   %8.3f%8.3f%8.3f%6.2f%6.2f          %2s\n",
-						recordType,        // 1-6: "ATOM  " or "HETATM"
-						atomSerial,        // 7-11: atom serial number
-						formattedAtomName, // 13-16: atom name
-						' ',               // 17: alternate location indicator
-						singleLetterToResidue(string(residue.Name)), // 18-20: residue name
-						chain.Ident,                                 // 22: chain identifier
-						residue.SequenceNum,                         // 23-26: residue sequence number
-						insertionCode,                               // 27: insertion code
-						atom.Coords.X, atom.Coords.Y, atom.Coords.Z, // 31-38, 39-46, 47-54: coordinates
-						1.00, 20.00, // 55-60, 61-66: occupancy and temperature factor
-						extractElementSymbol(atom.Name), // 77-78: element symbol
-					)
-					atomSerial++
+				// Only add residue if it has atoms
+				if len(newResidue.Atoms) > 0 {
+					newModel.Residues = append(newModel.Residues, newResidue)
 				}
 			}
 
-			// Only output ENDMDL record if we have multiple models (ensemble)
-			if hasMultipleModels {
-				fmt.Fprintf(writer, "ENDMDL\n")
+			// Only add model if it has residues
+			if len(newModel.Residues) > 0 {
+				newChain.Models = append(newChain.Models, newModel)
 			}
+		}
+
+		// Only add chain if it has models
+		if len(newChain.Models) > 0 {
+			filteredEntry.Chains = append(filteredEntry.Chains, newChain)
 		}
 	}
 
-	fmt.Fprintf(writer, "END\n")
-	return nil
-}
-
-func aminoAcidFromResidue(residue rune) string {
-	// Convert single letter amino acid code to 3-letter code
-	switch residue {
-	case 'A':
-		return "ALA"
-	case 'R':
-		return "ARG"
-	case 'N':
-		return "ASN"
-	case 'D':
-		return "ASP"
-	case 'C':
-		return "CYS"
-	case 'E':
-		return "GLU"
-	case 'Q':
-		return "GLN"
-	case 'G':
-		return "GLY"
-	case 'H':
-		return "HIS"
-	case 'I':
-		return "ILE"
-	case 'L':
-		return "LEU"
-	case 'K':
-		return "LYS"
-	case 'M':
-		return "MET"
-	case 'F':
-		return "PHE"
-	case 'P':
-		return "PRO"
-	case 'S':
-		return "SER"
-	case 'T':
-		return "THR"
-	case 'W':
-		return "TRP"
-	case 'Y':
-		return "TYR"
-	case 'V':
-		return "VAL"
-	default:
-		return "UNK"
-	}
-}
-
-// extractElementSymbol extracts the element symbol from an atom name
-func extractElementSymbol(atomName string) string {
-	// Remove leading digits and spaces, then take the first letter
-	atomName = strings.TrimSpace(atomName)
-	if len(atomName) == 0 {
-		return ""
-	}
-
-	// Find the first alphabetic character
-	for i, char := range atomName {
-		if (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') {
-			// Take the first letter and optionally the second if it's lowercase
-			if i+1 < len(atomName) && atomName[i+1] >= 'a' && atomName[i+1] <= 'z' {
-				return strings.ToUpper(atomName[i : i+2])
-			}
-			return strings.ToUpper(string(char))
-		}
-	}
-
-	// Fallback: return the first character if no alphabetic character found
-	if len(atomName) > 0 {
-		return strings.ToUpper(string(atomName[0]))
-	}
-	return ""
-}
-
-// singleLetterToResidue converts single-letter amino acid codes to three-letter codes
-func singleLetterToResidue(singleLetter string) string {
-	// Convert to uppercase for consistency
-	singleLetter = strings.ToUpper(singleLetter)
-
-	// Reverse mapping from single letter to three letter codes
-	reverseMap := map[string]string{
-		"A": "ALA", "R": "ARG", "N": "ASN", "D": "ASP", "C": "CYS",
-		"Q": "GLN", "E": "GLU", "G": "GLY", "H": "HIS", "I": "ILE",
-		"L": "LEU", "K": "LYS", "M": "MET", "F": "PHE", "P": "PRO",
-		"S": "SER", "T": "THR", "W": "TRP", "Y": "TYR", "V": "VAL",
-		// Modified amino acids and common variants
-		"U": "SEC", "O": "PYL", // Selenocysteine and Pyrrolysine
-		"X": "UNK", "J": "XLE", // Unknown amino acids
-	}
-
-	if threeLetter, exists := reverseMap[singleLetter]; exists {
-		return threeLetter
-	}
-
-	// If not found, return UNK for unknown
-	return "UNK"
-}
-
-// formatAtomName formats the atom name for PDB output according to spec.
-// Columns 13-16: Atom name.
-// Details: Element symbol right-justified in 13-14.
-//
-//	Trailing characters left-justified in 15-16.
-//	Single-char element symbol should be in column 14, unless atom name is 4 chars.
-func formatAtomName(atomName string) string {
-	name := strings.TrimSpace(atomName)
-	element := extractElementSymbol(name)
-
-	// Rule: If an atom name has four characters, it must start in column 13
-	if len(name) >= 4 {
-		return fmt.Sprintf("%-4s", name)
-	}
-
-	// Rule: single-character element symbol should not appear in column 13
-	if len(element) == 1 {
-		// Place element in column 14.
-		trailing := strings.TrimPrefix(name, element)
-		return fmt.Sprintf(" %-1s%-2s", element, trailing)
-	}
-
-	// Rule: element symbols right-justified in columns 13-14.
-	if len(element) == 2 {
-		trailing := strings.TrimPrefix(name, element)
-		return fmt.Sprintf("%-2s%-2s", element, trailing)
-	}
-
-	// Fallback for weird cases, just left-justify.
-	return fmt.Sprintf("%-4s", name)
+	return filteredEntry, newAltLocList, nil
 }
 
 func readAllFromStdin() ([]byte, error) {
@@ -382,6 +354,9 @@ func buildCommandLine(cmd *cobra.Command, args []string, inputFile string) strin
 	}
 	if output != "" {
 		parts = append(parts, "--output", output)
+	}
+	if altloc != "" {
+		parts = append(parts, "--altloc", altloc)
 	}
 
 	// Add input file if not from stdin

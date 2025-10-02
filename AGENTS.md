@@ -16,8 +16,9 @@ After any bugfix, change in behaviour or an notable new feature has been success
 ## PR checklist
 
 - Run `make fmt` and `make test`
+- Update documentation in `doc/docs` with any changes to the usage of a command or flag.
 - Update `CHANGELOG.md` for notable features and fixes
-- 
+
 ## Reference documentation
 
  - For the (legacy) PDB format, refer to:

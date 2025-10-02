@@ -194,8 +194,10 @@ func renumberChainResidues(chain *pdb.Chain, startNum int, forceSequential bool,
 				}
 
 				newResidue := &pdb.Residue{
-					Name:        residue.Name,
-					SequenceNum: currentNum,
+					Name:          residue.Name,
+					SequenceNum:   currentNum,
+					InsertionCode: residue.InsertionCode,
+					Atoms:         residue.Atoms,
 				}
 				newModel.Residues[j] = newResidue
 				currentNum++
@@ -228,8 +230,10 @@ func renumberChainResidues(chain *pdb.Chain, startNum int, forceSequential bool,
 				}
 
 				newResidue := &pdb.Residue{
-					Name:        residue.Name,
-					SequenceNum: newResNum,
+					Name:          residue.Name,
+					SequenceNum:   newResNum,
+					InsertionCode: residue.InsertionCode,
+					Atoms:         residue.Atoms,
 				}
 				newModel.Residues[j] = newResidue
 			}

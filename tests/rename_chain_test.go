@@ -65,7 +65,7 @@ END`
 
 	// Test warning case: new chain already exists
 	cmd = exec.Command("../bin/pdbtk", "rename-chain", "A", "--to", "B", "test_rename.pdb")
-	output, err = cmd.Output()
+	_, err = cmd.Output()
 	if err != nil {
 		t.Fatalf("rename-chain command failed when renaming to existing chain: %v", err)
 	}

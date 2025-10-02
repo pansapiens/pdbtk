@@ -11,7 +11,6 @@ import (
 )
 
 var (
-	renameChainID   string
 	renameToChainID string
 	renameOutput    string
 )
@@ -180,8 +179,10 @@ func renameChainPDB(entry *pdb.Entry, oldChainID, newChainID byte) (*pdb.Entry, 
 			// Copy residues
 			for j, residue := range model.Residues {
 				newResidue := &pdb.Residue{
-					Name:        residue.Name,
-					SequenceNum: residue.SequenceNum,
+					Name:          residue.Name,
+					SequenceNum:   residue.SequenceNum,
+					InsertionCode: residue.InsertionCode,
+					Atoms:         residue.Atoms,
 				}
 				newModel.Residues[j] = newResidue
 			}
