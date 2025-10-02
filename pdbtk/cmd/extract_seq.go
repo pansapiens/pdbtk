@@ -228,5 +228,10 @@ func writeFASTAToWriter(sequences map[string]string, writer io.Writer, inputFile
 		}
 	}
 
+	// Final newline
+	if len(sequences) > 0 {
+		fmt.Fprintf(writer, "\n")
+	}
+
 	return nil
 }
