@@ -98,6 +98,7 @@ Usage:
 
 Flags:
   -c, --chains string   Comma-separated list of chain IDs to extract (required)
+      --chain string    Alias for --chains
   -h, --help            help for extract
   -o, --output string   Output file (default: stdout)
       --altloc string   Filter by alternative location (ALTLOC) identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist
@@ -130,6 +131,11 @@ $ pdbtk extract --chains A --altloc B 1a02.pdb
 $ pdbtk extract --chains A --altloc first 1a02.pdb
 ```
 
+6. Extract using --chain alias
+```bash
+$ pdbtk extract --chain A,B,C --output 1a02_chainABC.pdb 1a02.pdb
+```
+
 ## extract-seq Usage
 
 ```text
@@ -144,6 +150,7 @@ Usage:
 
 Flags:
   -c, --chains string   Comma-separated list of chain IDs to extract (default: all chains)
+      --chain string    Alias for --chains
   -h, --help            help for extract-seq
   -o, --output string   Output file (default: stdout)
       --seqres          Use SEQRES records instead of ATOM records
@@ -174,6 +181,11 @@ $ cat 1a02.pdb | pdbtk extract-seq --chains B,C
 5. Extract sequences using SEQRES records
 ```bash
 $ pdbtk extract-seq --seqres 1a02.pdb
+```
+
+6. Extract sequences using --chain alias
+```bash
+$ pdbtk extract-seq --chain A,B 1a02.pdb > 1a02_chainAB.fasta
 ```
 
 **Note on sequence extraction:**

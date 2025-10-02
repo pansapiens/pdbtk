@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `version` command to print the current version number
 - Version information displayed in help text
+- `--chain` as alias for `--chains` flag in `extract` and `extract-seq` commands
 
 ## [0.1.1] - 2025-01-27
 

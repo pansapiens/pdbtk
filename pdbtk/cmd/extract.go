@@ -45,6 +45,7 @@ Examples:
 
 func init() {
 	extractCmd.Flags().StringVarP(&chains, "chains", "c", "", "Comma-separated list of chain IDs to extract")
+	extractCmd.Flags().StringVar(&chains, "chain", "", "Alias for --chains")
 	extractCmd.Flags().StringVarP(&output, "output", "o", "", "Output file (default: stdout)")
 	extractCmd.Flags().StringVar(&altloc, "altloc", "", "Filter by ALTLOC identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist")
 }
@@ -350,7 +351,7 @@ func buildCommandLine(cmd *cobra.Command, args []string, inputFile string) strin
 
 	// Add flags
 	if chains != "" {
-		parts = append(parts, "--chains", chains)
+		parts = append(parts, "--chain", chains)
 	}
 	if output != "" {
 		parts = append(parts, "--output", output)

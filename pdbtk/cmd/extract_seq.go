@@ -44,6 +44,7 @@ Examples:
 
 func init() {
 	extractSeqCmd.Flags().StringVarP(&seqChains, "chains", "c", "", "Comma-separated list of chain IDs to extract (default: all chains)")
+	extractSeqCmd.Flags().StringVar(&seqChains, "chain", "", "Alias for --chains")
 	extractSeqCmd.Flags().StringVarP(&seqOutput, "output", "o", "", "Output file (default: stdout)")
 	extractSeqCmd.Flags().BoolVar(&useSeqRes, "seqres", false, "Use SEQRES records instead of ATOM records")
 }
