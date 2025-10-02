@@ -188,6 +188,11 @@ $ pdbtk extract-seq --seqres 1a02.pdb
 $ pdbtk extract-seq --chain A,B 1a02.pdb > 1a02_chainAB.fasta
 ```
 
+7. Extract sequences from multiple PDB files in the current directory
+```bash
+$ find . -name "*.pdb" -exec pdbtk extract-seq {} \; > myseqs.fasta
+```
+
 **Note on sequence extraction:**
 - By default, `extract-seq` extracts sequences from ATOM records with gap characters (`-`) inserted for missing residue numbers.
 - Use `--seqres` to extract from SEQRES records instead (which contain the full sequence including regions not present in ATOM records).
