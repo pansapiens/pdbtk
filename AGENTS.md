@@ -19,6 +19,13 @@ After any bugfix, change in behaviour or an notable new feature has been success
 - Update documentation in `doc/docs` with any changes to the usage of a command or flag.
 - Update `CHANGELOG.md` for notable features and fixes
 
+## Versioning
+- We use Semantic Versioning.
+- If the user asks to increment the version, change the version number in:
+  - `pdbtk/cmd/root.go` (`const Version`)
+  - `doc/docs/usage.md` (`Version:`)
+  - After git commit for a new version, we will create a new release tag (like v0.1.0) with the new version number - ask the user before doing this, they may do it themselves.
+
 ## Reference documentation
 
  - For the (legacy) PDB format, refer to:

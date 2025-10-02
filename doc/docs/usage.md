@@ -13,7 +13,7 @@
 ```text
 pdbtk -- a cross-platform, efficient and practical PDB structure file manipulation toolkit
 
-Version: 0.1
+Version: 0.1.1
 Author: Perry
 Source code: https://github.com/perry/pdbtk
 
