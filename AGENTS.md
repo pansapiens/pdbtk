@@ -24,6 +24,7 @@ After any bugfix, change in behaviour or an notable new feature has been success
 - If the user asks to increment the version, change the version number in:
   - `pdbtk/cmd/root.go` (`const Version`)
   - `doc/docs/usage.md` (`Version:`)
+  - Move rename the [Unreleased] section to the new version in `CHANGELOG.md`, and create a new [Unreleased] section at the top.
   - After git commit for a new version, we will create a new release tag (like v0.1.0) with the new version number - ask the user before doing this, they may do it themselves.
 
 ## Reference documentation

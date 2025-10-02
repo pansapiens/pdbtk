@@ -12,13 +12,24 @@ const Version = "0.1.1"
 var rootCmd = &cobra.Command{
 	Use:   "pdbtk",
 	Short: "PDB structure file manipulation toolkit",
-	Long: `pdbtk is a command-line toolkit for manipulating PDB structure files.
-It provides various operations for extracting, filtering, and transforming protein structure data.`,
+	Long: fmt.Sprintf(`pdbtk is a command-line toolkit for manipulating PDB structure files.
+It provides various operations for extracting, filtering, and transforming protein structure data.
+
+Version: %s`, Version),
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 func Execute() error {
 	return rootCmd.Execute()
+}
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print the version number",
+	Long:  `Print the version number of pdbtk.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println(Version)
+	},
 }
 
 func init() {
@@ -27,6 +38,7 @@ func init() {
 	rootCmd.AddCommand(getCmd)
 	rootCmd.AddCommand(renameChainCmd)
 	rootCmd.AddCommand(renumberResiduesCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 // CheckFileExists checks if a file exists and returns an error if it doesn't

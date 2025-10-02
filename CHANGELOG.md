@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `version` command to print the current version number
+- Version information displayed in help text
+
+## [0.1.1] - 2025-01-27
+
+### Added
 - `get` command for downloading PDB files from the RCSB PDB database
 - `rename-chain` command for renaming chains in PDB files
 - `renumber-residues` command for renumbering residues with gap preservation or sequential numbering

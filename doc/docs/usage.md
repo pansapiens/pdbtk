@@ -6,6 +6,7 @@
 - **Coordinate extraction**: [extract](#extract-usage)
 - **Sequence extraction**: [extract-seq](#extract-seq-usage)
 - **Chain manipulation**: [rename-chain](#rename-chain-usage), [renumber-residues](#renumber-residues-usage)
+- **Version info**: [version](#version-usage)
 - **Other**: [completion](#completion-usage)
 
 ## pdbtk Usage
@@ -29,6 +30,7 @@ Available Commands:
   extract-seq       Extract sequences from chains in a PDB file
   rename-chain      Rename a chain in a PDB file
   renumber-residues Renumber residues in a PDB file
+  version           Print the version number
   completion        Generate the autocompletion script for the specified shell
   help              Help about any command
 
@@ -178,6 +180,26 @@ $ pdbtk extract-seq --seqres 1a02.pdb
 - By default, `extract-seq` extracts sequences from ATOM records with gap characters (`-`) inserted for missing residue numbers.
 - Use `--seqres` to extract from SEQRES records instead (which contain the full sequence including regions not present in ATOM records).
 - If `--seqres` is specified but no SEQRES records are present, a warning is printed and no sequence is returned.
+
+## version Usage
+
+```text
+Print the version number of pdbtk.
+
+Usage:
+  pdbtk version [flags]
+
+Flags:
+  -h, --help   help for version
+```
+
+### Examples
+
+Print the current version
+```bash
+$ pdbtk version
+0.1.1
+```
 
 ## completion Usage
 
