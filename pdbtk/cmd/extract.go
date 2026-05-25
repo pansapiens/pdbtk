@@ -12,9 +12,11 @@ import (
 )
 
 var (
-	chains string
-	output string
-	altloc string
+	chains     string
+	output     string
+	altloc     string
+	keepHetatm bool
+	keepWaters bool
 )
 
 var extractCmd = &cobra.Command{
@@ -38,7 +40,13 @@ Examples:
   pdbtk extract --chains A --altloc A 1a02.pdb
 
   # Extract first ALTLOC when duplicates exist
-  pdbtk extract --chains A --altloc first 1a02.pdb`,
+  pdbtk extract --chains A --altloc first 1a02.pdb
+
+  # Retain hetero atoms (excluding waters) matching extracted chains
+  pdbtk extract --chains A --keep-hetatm 1a02.pdb
+
+  # Include waters alongside hetero atoms
+  pdbtk extract --chains A --keep-hetatm --keep-waters 1a02.pdb`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runExtract,
 }
@@ -48,6 +56,8 @@ func init() {
 	extractCmd.Flags().StringVar(&chains, "chain", "", "Alias for --chains")
 	extractCmd.Flags().StringVarP(&output, "output", "o", "", "Output file (default: stdout)")
 	extractCmd.Flags().StringVar(&altloc, "altloc", "", "Filter by ALTLOC identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist")
+	extractCmd.Flags().BoolVar(&keepHetatm, "keep-hetatm", false, "Retain HETATM records (excluding waters) matching the extraction selection; also emits LINK records when both bond sites remain in the output")
+	extractCmd.Flags().BoolVar(&keepWaters, "keep-waters", false, "Retain HOH waters matching the extraction selection")
 }
 
 func runExtract(cmd *cobra.Command, args []string) error {
@@ -57,17 +67,14 @@ func runExtract(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		inputFile = args[0]
 		isStdin = false
-		// Check if input file exists
 		if err := CheckFileExists(inputFile); err != nil {
 			return err
 		}
-		// Check if it's a PDB file
 		inputExt := strings.ToLower(filepath.Ext(inputFile))
 		if inputExt != ".pdb" {
 			return fmt.Errorf("only PDB files are supported, got: %s", inputExt)
 		}
 	} else {
-		// Check if stdin is available
 		stat, err := os.Stdin.Stat()
 		if err != nil {
 			return fmt.Errorf("failed to check stdin: %v", err)
@@ -79,12 +86,10 @@ func runExtract(cmd *cobra.Command, args []string) error {
 		isStdin = true
 	}
 
-	// Validate that at least one of --chains or --altloc is specified
-	if chains == "" && altloc == "" {
-		return fmt.Errorf("at least one of --chains or --altloc must be specified")
+	if chains == "" && altloc == "" && !keepHetatm && !keepWaters {
+		return fmt.Errorf("at least one of --chains, --altloc, --keep-hetatm, or --keep-waters must be specified")
 	}
 
-	// Parse chain IDs
 	var chainList []string
 	if chains != "" {
 		chainList = strings.Split(chains, ",")
@@ -96,9 +101,10 @@ func runExtract(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Read the PDB file with ALTLOC support
 	var entry *pdb.Entry
 	var altLocList []byte
+	var hetRaw []HetRecord
+	var linkRaw []string
 	var err error
 	if isStdin {
 		content, err := readAllFromStdin()
@@ -111,6 +117,8 @@ func runExtract(cmd *cobra.Command, args []string) error {
 		}
 		entry = extendedEntry.Entry
 		altLocList = extendedEntry.AltLocList
+		hetRaw = extendedEntry.HetRecords
+		linkRaw = extendedEntry.LinkRecords
 	} else {
 		extendedEntry, err := ReadPDBWithAltLoc(inputFile)
 		if err != nil {
@@ -118,9 +126,10 @@ func runExtract(cmd *cobra.Command, args []string) error {
 		}
 		entry = extendedEntry.Entry
 		altLocList = extendedEntry.AltLocList
+		hetRaw = extendedEntry.HetRecords
+		linkRaw = extendedEntry.LinkRecords
 	}
 
-	// Extract the specified chains (if specified)
 	var extractedChains *pdb.Entry
 	if len(chainList) > 0 {
 		extractedChains, altLocList, err = ExtractChainsPDB(entry, chainList, altLocList)
@@ -128,11 +137,9 @@ func runExtract(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to extract chains: %v", err)
 		}
 	} else {
-		// No chain filtering, use all chains
 		extractedChains = entry
 	}
 
-	// Apply ALTLOC filtering if specified
 	if altloc != "" {
 		extractedChains, altLocList, err = filterByAltLoc(extractedChains, altLocList, altloc)
 		if err != nil {
@@ -140,22 +147,177 @@ func runExtract(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Build the full command line
+	filteredHet := filterHetRecords(hetRaw, chainList, keepHetatm, keepWaters, altloc)
+
+	var filteredLinks []string
+	if keepHetatm {
+		filteredLinks = filterLINKRecords(linkRaw, extractedChains, filteredHet)
+	}
+
 	commandLine := buildCommandLine(cmd, args, inputFile)
 
-	// Write the output
 	if output == "" || output == "-" {
-		// Write to stdout
-		return writePDBToWriterWithAltLoc(extractedChains, altLocList, os.Stdout, commandLine)
-	} else {
-		// Write to file
-		file, err := os.Create(output)
-		if err != nil {
-			return fmt.Errorf("failed to create output file: %v", err)
-		}
-		defer file.Close()
-		return writePDBToWriterWithAltLoc(extractedChains, altLocList, file, commandLine)
+		return writePDBToWriterWithAltLoc(extractedChains, altLocList, filteredHet, filteredLinks, os.Stdout, commandLine)
 	}
+	file, err := os.Create(output)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %v", err)
+	}
+	defer file.Close()
+	return writePDBToWriterWithAltLoc(extractedChains, altLocList, filteredHet, filteredLinks, file, commandLine)
+}
+
+func linkAtomSiteKey(s LinkAtomSite) string {
+	return fmt.Sprintf("%s|%s|%c|%d|%c",
+		strings.ToUpper(strings.TrimSpace(s.AtomName)),
+		strings.ToUpper(strings.TrimSpace(s.ResName)),
+		s.Chain,
+		s.SeqNum,
+		normalizeLinkInsertion(s.InsCode),
+	)
+}
+
+func buildLinkAtomSiteKeys(entry *pdb.Entry, keptHet []HetRecord) map[string]struct{} {
+	keys := make(map[string]struct{})
+	for _, ch := range entry.Chains {
+		for _, md := range ch.Models {
+			for _, res := range md.Residues {
+				res3 := strings.ToUpper(singleLetterToResidue(strings.ToUpper(string(byte(res.Name)))))
+				ins := normalizeLinkInsertion(res.InsertionCode)
+				for _, atom := range res.Atoms {
+					an := strings.ToUpper(strings.TrimSpace(RemoveAltLocFromAtomName(atom.Name)))
+					keys[linkAtomSiteKey(LinkAtomSite{
+						AtomName: an,
+						ResName:  res3,
+						Chain:    ch.Ident,
+						SeqNum:   res.SequenceNum,
+						InsCode:  ins,
+					})] = struct{}{}
+				}
+			}
+		}
+	}
+	for _, h := range keptHet {
+		ins := normalizeLinkInsertion(h.InsCode)
+		keys[linkAtomSiteKey(LinkAtomSite{
+			AtomName: strings.ToUpper(strings.TrimSpace(h.AtomName)),
+			ResName:  strings.ToUpper(strings.TrimSpace(h.ResName)),
+			Chain:    h.Chain,
+			SeqNum:   h.SeqNum,
+			InsCode:  ins,
+		})] = struct{}{}
+	}
+	return keys
+}
+
+func filterLINKRecords(lines []string, entry *pdb.Entry, keptHet []HetRecord) []string {
+	if len(lines) == 0 {
+		return nil
+	}
+	keySet := buildLinkAtomSiteKeys(entry, keptHet)
+	var out []string
+	for _, line := range lines {
+		a1, a2, ok := ParseLINKRecord(line)
+		if !ok {
+			continue
+		}
+		if _, ok1 := keySet[linkAtomSiteKey(a1)]; !ok1 {
+			continue
+		}
+		if _, ok2 := keySet[linkAtomSiteKey(a2)]; !ok2 {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+func filterHetRecords(hetRaw []HetRecord, chainList []string, keepHetatm bool, keepWaters bool, altlocFilter string) []HetRecord {
+	if !keepHetatm && !keepWaters {
+		return nil
+	}
+	validChains := make(map[byte]bool)
+	for _, id := range chainList {
+		if len(id) == 1 {
+			validChains[id[0]] = true
+		}
+	}
+	chainFilter := len(chainList) > 0
+
+	var sel []HetRecord
+	for _, h := range hetRaw {
+		if chainFilter && !validChains[h.Chain] {
+			continue
+		}
+		if h.IsWater {
+			if !keepWaters {
+				continue
+			}
+		} else if !keepHetatm {
+			continue
+		}
+		sel = append(sel, h)
+	}
+	if altlocFilter == "" {
+		return sel
+	}
+	return filterHetByAltLoc(sel, altlocFilter)
+}
+
+func hetAltLocGroupKey(h HetRecord) string {
+	ic := h.InsCode
+	if ic == 0 || ic == ' ' {
+		return fmt.Sprintf("%c|%d|%c|%s", h.Chain, h.SeqNum, ' ', strings.TrimSpace(h.AtomName))
+	}
+	return fmt.Sprintf("%c|%d|%c|%s", h.Chain, h.SeqNum, ic, strings.TrimSpace(h.AtomName))
+}
+
+func filterHetByAltLoc(hets []HetRecord, altlocFilter string) []HetRecord {
+	groups := make(map[string][]HetRecord)
+	var order []string
+	seen := make(map[string]bool)
+	for _, h := range hets {
+		k := hetAltLocGroupKey(h)
+		groups[k] = append(groups[k], h)
+		if !seen[k] {
+			seen[k] = true
+			order = append(order, k)
+		}
+	}
+	var result []HetRecord
+	for _, k := range order {
+		result = append(result, pickHetAltLoc(groups[k], altlocFilter)...)
+	}
+	return result
+}
+
+func pickHetAltLoc(group []HetRecord, altlocFilter string) []HetRecord {
+	if len(group) == 0 {
+		return nil
+	}
+	if altlocFilter == "first" {
+		if len(group) == 1 {
+			return []HetRecord{group[0]}
+		}
+		selectedIdx := 0
+		for i, rec := range group {
+			al := rec.AltLoc
+			if al != ' ' && al != 0 {
+				selectedIdx = i
+				break
+			}
+		}
+		return []HetRecord{group[selectedIdx]}
+	}
+	target := altlocFilter[0]
+	var out []HetRecord
+	for _, rec := range group {
+		al := rec.AltLoc
+		if al == target || al == ' ' || al == 0 {
+			out = append(out, rec)
+		}
+	}
+	return out
 }
 
 func readPDB(filename string) (*pdb.Entry, error) {
@@ -163,7 +325,6 @@ func readPDB(filename string) (*pdb.Entry, error) {
 }
 
 func readPDBFromContent(content []byte) (*pdb.Entry, error) {
-	// Create a temporary file to read from content
 	tmpfile, err := os.CreateTemp("", "pdbtk_*.pdb")
 	if err != nil {
 		return nil, err
@@ -180,7 +341,6 @@ func readPDBFromContent(content []byte) (*pdb.Entry, error) {
 }
 
 func ExtractChainsPDB(entry *pdb.Entry, chainList []string, altLocList []byte) (*pdb.Entry, []byte, error) {
-	// Create a new entry with only the specified chains
 	newEntry := &pdb.Entry{
 		Path:   entry.Path,
 		IdCode: entry.IdCode,
@@ -189,7 +349,6 @@ func ExtractChainsPDB(entry *pdb.Entry, chainList []string, altLocList []byte) (
 		Cath:   entry.Cath,
 	}
 
-	// Create a set of valid chain IDs for quick lookup
 	validChains := make(map[byte]bool)
 	for _, chainID := range chainList {
 		if len(chainID) == 1 {
@@ -197,12 +356,10 @@ func ExtractChainsPDB(entry *pdb.Entry, chainList []string, altLocList []byte) (
 		}
 	}
 
-	// Filter chains and corresponding ALTLOC information
 	newAltLocList := make([]byte, 0)
 	atomIndex := 0
 
 	for _, chain := range entry.Chains {
-		// Count atoms in this chain
 		atomCount := 0
 		for _, model := range chain.Models {
 			for _, residue := range model.Residues {
@@ -211,9 +368,7 @@ func ExtractChainsPDB(entry *pdb.Entry, chainList []string, altLocList []byte) (
 		}
 
 		if validChains[chain.Ident] {
-			// Include this chain
 			newEntry.Chains = append(newEntry.Chains, chain)
-			// Copy the corresponding ALTLOC entries
 			if altLocList != nil && atomIndex+atomCount <= len(altLocList) {
 				newAltLocList = append(newAltLocList, altLocList[atomIndex:atomIndex+atomCount]...)
 			}
@@ -224,9 +379,7 @@ func ExtractChainsPDB(entry *pdb.Entry, chainList []string, altLocList []byte) (
 	return newEntry, newAltLocList, nil
 }
 
-// filterByAltLoc filters atoms based on ALTLOC criteria
 func filterByAltLoc(entry *pdb.Entry, altLocList []byte, altlocFilter string) (*pdb.Entry, []byte, error) {
-	// Create a new entry with filtered atoms
 	filteredEntry := &pdb.Entry{
 		Path:   entry.Path,
 		IdCode: entry.IdCode,
@@ -264,7 +417,6 @@ func filterByAltLoc(entry *pdb.Entry, altLocList []byte, altlocFilter string) (*
 					Atoms:         make([]pdb.Atom, 0),
 				}
 
-				// Group atoms by name to detect duplicates
 				type atomWithIndex struct {
 					atom   pdb.Atom
 					index  int
@@ -272,7 +424,6 @@ func filterByAltLoc(entry *pdb.Entry, altLocList []byte, altlocFilter string) (*
 				}
 				atomGroups := make(map[string][]atomWithIndex)
 
-				// Group atoms by name
 				for _, atom := range residue.Atoms {
 					var altLoc byte = ' '
 					if atomIndex < len(altLocList) {
@@ -286,12 +437,9 @@ func filterByAltLoc(entry *pdb.Entry, altLocList []byte, altlocFilter string) (*
 					atomIndex++
 				}
 
-				// Apply ALTLOC filtering
 				for _, group := range atomGroups {
 					if altlocFilter == "first" {
-						// Take the first ALTLOC when duplicates exist
 						if len(group) > 1 {
-							// Find the first atom with a non-space ALTLOC, or take the first atom
 							selectedIdx := 0
 							for i, atomInfo := range group {
 								if atomInfo.altLoc != ' ' {
@@ -302,12 +450,10 @@ func filterByAltLoc(entry *pdb.Entry, altLocList []byte, altlocFilter string) (*
 							newResidue.Atoms = append(newResidue.Atoms, group[selectedIdx].atom)
 							newAltLocList = append(newAltLocList, group[selectedIdx].altLoc)
 						} else {
-							// Only one atom, keep it
 							newResidue.Atoms = append(newResidue.Atoms, group[0].atom)
 							newAltLocList = append(newAltLocList, group[0].altLoc)
 						}
 					} else {
-						// Filter by specific ALTLOC identifier
 						targetAltLoc := altlocFilter[0]
 						for _, atomInfo := range group {
 							if atomInfo.altLoc == targetAltLoc || atomInfo.altLoc == ' ' {
@@ -318,19 +464,16 @@ func filterByAltLoc(entry *pdb.Entry, altLocList []byte, altlocFilter string) (*
 					}
 				}
 
-				// Only add residue if it has atoms
 				if len(newResidue.Atoms) > 0 {
 					newModel.Residues = append(newModel.Residues, newResidue)
 				}
 			}
 
-			// Only add model if it has residues
 			if len(newModel.Residues) > 0 {
 				newChain.Models = append(newChain.Models, newModel)
 			}
 		}
 
-		// Only add chain if it has models
 		if len(newChain.Models) > 0 {
 			filteredEntry.Chains = append(filteredEntry.Chains, newChain)
 		}
@@ -346,10 +489,8 @@ func readAllFromStdin() ([]byte, error) {
 func buildCommandLine(cmd *cobra.Command, args []string, inputFile string) string {
 	var parts []string
 
-	// Add the command name
 	parts = append(parts, "pdbtk", "extract")
 
-	// Add flags
 	if chains != "" {
 		parts = append(parts, "--chain", chains)
 	}
@@ -359,8 +500,13 @@ func buildCommandLine(cmd *cobra.Command, args []string, inputFile string) strin
 	if altloc != "" {
 		parts = append(parts, "--altloc", altloc)
 	}
+	if keepHetatm {
+		parts = append(parts, "--keep-hetatm")
+	}
+	if keepWaters {
+		parts = append(parts, "--keep-waters")
+	}
 
-	// Add input file if not from stdin
 	if inputFile != "" {
 		parts = append(parts, inputFile)
 	}

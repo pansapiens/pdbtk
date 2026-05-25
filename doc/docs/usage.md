@@ -93,15 +93,23 @@ Extract specific chains from a PDB structure file.
 The output can be written to a file or stdout (if no output file is specified).
 If no input file is specified, reads from stdin.
 
+Unless --keep-hetatm or --keep-waters is given, hetero-coordinate lines omitted by the
+Tufts PDB reader (waters, and hetero fragments after TER) are not written—use those flags to retain them.
+With --keep-hetatm, LINK records from the input file are also appended when both bond sites remain in the output (extracted polymer atoms plus kept hetero atoms).
+
 Usage:
   pdbtk extract [flags] [input_file]
 
 Flags:
-  -c, --chains string   Comma-separated list of chain IDs to extract (required)
-      --chain string    Alias for --chains
-  -h, --help            help for extract
-  -o, --output string   Output file (default: stdout)
-      --altloc string   Filter by alternative location (ALTLOC) identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist
+  -c, --chains string       Comma-separated list of chain IDs to extract (use with filters below)
+      --chain string        Alias for --chains
+  -h, --help                help for extract
+  -o, --output string       Output file (default: stdout)
+      --altloc string       Filter by alternative location (ALTLOC) identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist
+      --keep-hetatm         Retain skipped HETATM records (excluding waters) for the extraction selection (chain list or all chains), plus matching LINK records
+      --keep-waters         Retain skipped HOH waters for the extraction selection
+
+At least one of --chains, --altloc, --keep-hetatm, or --keep-waters must be supplied.
 ```
 
 ### Examples
@@ -134,6 +142,16 @@ $ pdbtk extract --chains A --altloc first 1a02.pdb
 6. Extract using --chain alias
 ```bash
 $ pdbtk extract --chain A,B,C --output 1a02_chainABC.pdb 1a02.pdb
+```
+
+7. Keep hetero fragments (excluding waters) for chain A—for example ions or ligands that appear after TER
+```bash
+$ pdbtk extract --chains A --keep-hetatm 1a02.pdb
+```
+
+8. Keep waters together with hetero fragments
+```bash
+$ pdbtk extract --chains A --keep-hetatm --keep-waters 1a02.pdb
 ```
 
 ## extract-seq Usage

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `version` command to print the current version number
 - Version information displayed in help text
 - `--chain` as alias for `--chains` flag in `extract` and `extract-seq` commands
+- `--keep-hetatm` and `--keep-waters` flags for `extract` to retain skipped HETATM lines (hetero residues after TER and optional HOH waters) matching the extraction selection. `extract` also emits `LINK` records with `--keep-hetatm` when both parsed bond sites match filtering criteria.
+
+### Changed
+- `extract` requires at least one of `--chains`, `--altloc`, `--keep-hetatm`, or `--keep-waters`
 
 ## [0.1.1] - 2025-01-27
 

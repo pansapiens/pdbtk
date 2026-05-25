@@ -134,3 +134,111 @@ END`
 		t.Error("Chain B extraction should contain chain B atoms")
 	}
 }
+
+func countHetatmLines(output string) int {
+	n := 0
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, "HETATM") {
+			n++
+		}
+	}
+	return n
+}
+
+func countLINKLines(output string) int {
+	n := 0
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, "LINK") {
+			n++
+		}
+	}
+	return n
+}
+
+func TestExtractKeepHetatmFlags(t *testing.T) {
+	testPDB := `HEADER    TEST STRUCTURE                                   01-JAN-01   TEST
+ATOM      1  N   ALA A   1      10.000  10.000  10.000  1.00 11.18           N  
+ATOM      2  CA  ALA A   1      11.000  10.000  10.000  1.00 10.53           C  
+TER   38911      MET J 317                                                       
+LINK         CA  ALA A   1                ZN    ZN A  99     1555   1555   1.93
+HETATM   98  ZN   ZN A  99      20.000  20.000  20.000  1.00 36.00           ZN  
+ATOM     99  N   VAL B   1      30.000  26.967  33.862  1.00 11.18           N  
+ATOM    100  CA  VAL B   1      31.000  26.206  33.362  1.00 10.53           C  
+TER   38912      MET J 318                                                       
+HETATM  101  O   HOH A 100      40.000  40.000  40.000  1.00 36.00           O  
+HETATM  107  C2  LIG B 200      50.000  50.000  50.000  1.00 36.00           O  
+END
+`
+	err := os.WriteFile("test_extract_het.pdb", []byte(testPDB), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	defer os.Remove("test_extract_het.pdb")
+
+	run := func(args ...string) (string, error) {
+		cmd := exec.Command("../bin/pdbtk", args...)
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+
+	out, err := run("extract", "--chains", "A", "test_extract_het.pdb")
+	if err != nil {
+		t.Fatalf("extract: %v\n%s", err, out)
+	}
+	if countHetatmLines(out) != 0 {
+		t.Fatalf("expected 0 HETATM without keep flags, got %d", countHetatmLines(out))
+	}
+	if countLINKLines(out) != 0 {
+		t.Fatalf("expected no LINK lines without keep-hetatm, got %d", countLINKLines(out))
+	}
+
+	out, err = run("extract", "--chains", "A", "--keep-hetatm", "test_extract_het.pdb")
+	if err != nil {
+		t.Fatalf("extract keep-hetatm: %v\n%s", err, out)
+	}
+	if n := countHetatmLines(out); n != 1 {
+		t.Fatalf("expected 1 non-water HETATM for chain A, got %d", n)
+	}
+	if !strings.Contains(out, " ZN ") || strings.Contains(out, "HOH") {
+		t.Fatalf("expected ZN hetero without HOH, output:\n%s", out)
+	}
+	if countLINKLines(out) != 1 || !strings.Contains(out, "LINK") {
+		t.Fatalf("expected exactly one LINK with --keep-hetatm chain A, output:\n%s", out)
+	}
+
+	out, err = run("extract", "--chains", "A", "--keep-waters", "test_extract_het.pdb")
+	if err != nil {
+		t.Fatalf("extract keep-waters: %v\n%s", err, out)
+	}
+	if n := countHetatmLines(out); n != 1 {
+		t.Fatalf("expected 1 water HETATM for chain A, got %d", n)
+	}
+	if !strings.Contains(out, "HOH") || strings.Contains(out, "LIG") {
+		t.Fatalf("expected HOH without LIG, output:\n%s", out)
+	}
+	if countLINKLines(out) != 0 {
+		t.Fatalf("expected no LINK lines with --keep-waters only")
+	}
+
+	out, err = run("extract", "--chains", "A", "--keep-hetatm", "--keep-waters", "test_extract_het.pdb")
+	if err != nil {
+		t.Fatalf("extract both keeps: %v\n%s", err, out)
+	}
+	if n := countHetatmLines(out); n != 2 {
+		t.Fatalf("expected 2 HETATM (LIG + HOH), got %d", n)
+	}
+	if strings.Contains(out, "LIG B") || strings.Contains(out, "HOH B") {
+		t.Fatalf("chain B hetero leaked into chain A extraction:\n%s", out)
+	}
+
+	out, err = run("extract", "--keep-hetatm", "test_extract_het.pdb")
+	if err != nil {
+		t.Fatalf("extract keep-hetatm all chains: %v\n%s", err, out)
+	}
+	if n := countHetatmLines(out); n != 2 {
+		t.Fatalf("expected non-water ligands on A and B, got %d HETATM", n)
+	}
+	if !strings.Contains(out, "ZN A") || !strings.Contains(out, "LIG B") {
+		t.Fatalf("expected ZN on chain A and LIG on chain B, output:\n%s", out)
+	}
+}
