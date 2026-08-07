@@ -19,12 +19,12 @@ var (
 var getCmd = &cobra.Command{
 	Use:   "get [flags] <pdb_code>",
 	Short: "Download a PDB file from the RCSB PDB database",
-	Long: `Download a PDB file from the RCSB PDB database using the PDB code.
-The file will be downloaded from https://files.rcsb.org/download/{pdb_code}.pdb
+	Long: `Download a structure file from the RCSB PDB database using the PDB code.
+The file will be downloaded from https://files.rcsb.org/download/{pdb_code}.{format}
 
 By default, the file is saved as {pdb_code}.pdb in the current directory.
 Use --output to specify a different filename or "-" to output to stdout.
-Use --format to specify the file format (pdb, pdb.gz).
+Use --format to specify the file format (pdb, pdb.gz, cif, cif.gz).
 
 Examples:
   # Download 1A02 as PDB file
@@ -32,6 +32,9 @@ Examples:
 
   # Download as compressed PDB file
   pdbtk get --format pdb.gz 1A02
+
+  # Download as mmCIF file
+  pdbtk get --format cif 1A02
 
   # Download to stdout
   pdbtk get --output - 1A02
@@ -44,7 +47,7 @@ Examples:
 
 func init() {
 	getCmd.Flags().StringVarP(&getOutput, "output", "o", "", "Output file (default: {pdb_code}.pdb, use '-' for stdout)")
-	getCmd.Flags().StringVarP(&getFormat, "format", "f", "pdb", "File format: pdb, pdb.gz (default: pdb)")
+	getCmd.Flags().StringVarP(&getFormat, "format", "f", "pdb", "File format: pdb, pdb.gz, cif, cif.gz (default: pdb)")
 }
 
 func runGet(cmd *cobra.Command, args []string) error {
@@ -59,9 +62,11 @@ func runGet(cmd *cobra.Command, args []string) error {
 	validFormats := map[string]bool{
 		"pdb":    true,
 		"pdb.gz": true,
+		"cif":    true,
+		"cif.gz": true,
 	}
 	if !validFormats[getFormat] {
-		return fmt.Errorf("unsupported format: %s (supported: pdb, pdb.gz)", getFormat)
+		return fmt.Errorf("unsupported format: %s (supported: pdb, pdb.gz, cif, cif.gz)", getFormat)
 	}
 
 	// Construct download URL

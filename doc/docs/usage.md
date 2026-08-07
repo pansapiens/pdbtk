@@ -9,33 +9,83 @@
 - **Version info**: [version](#version-usage)
 - **Other**: [completion](#completion-usage)
 
+## File formats
+
+`pdbtk` reads and writes both the legacy PDB format and PDBx/mmCIF. The same
+operations apply to either, so `pdbtk` doubles as a format converter.
+
+**Input format** is detected from the file extension (`.pdb`, `.ent`, `.cif`,
+`.mmcif`, optionally `.gz`), falling back to sniffing the file contents — which
+is also how input on stdin is handled. Override it with `--in-format pdb|cif`.
+
+**Output format** follows the `--output` extension when there is one, otherwise
+it matches the input format. Override it with `--out-format pdb|cif`.
+
+```bash
+# Convert mmCIF to PDB
+$ pdbtk extract --out-format pdb 1a02.cif > 1a02.pdb
+
+# Convert PDB to mmCIF (the .cif output extension is enough)
+$ pdbtk extract --output 1a02.cif 1a02.pdb
+
+# Reading gzipped input directly
+$ pdbtk extract-seq 1a02.cif.gz
+```
+
+### Converting mmCIF to PDB
+
+mmCIF can represent structures the legacy PDB format cannot: chain IDs longer
+than one character, more than 99,999 atoms, and residue names longer than three
+characters. When such a structure would be written as PDB, `pdbtk` **fails with
+an error** rather than silently corrupting it:
+
+```text
+Error: structure cannot be represented in PDB format:
+  - chain ID "AAA" is longer than one character
+write mmCIF instead (--out-format cif), or pass --force-lossy-pdb to convert anyway
+```
+
+Pass `--force-lossy-pdb` to convert anyway. Chain IDs and residue names are
+truncated, atom serials and residue numbers beyond the column width are encoded
+using the wwPDB [hybrid-36](http://cci.lbl.gov/hybrid_36/) convention, a warning
+is printed to stderr, and a `REMARK   1 LOSSY CONVERSION` line records what was
+lost.
+
+### What is preserved
+
+Both writers emit coordinates, connectivity (`LINK` / `struct_conn`), sequence
+records (`SEQRES` / `pdbx_poly_seq_scheme`) and a provenance record. Other
+metadata in the input file (experimental details, citations, secondary
+structure) is **not** carried through.
+
 ## pdbtk Usage
 
 ```text
-pdbtk -- a cross-platform, efficient and practical PDB structure file manipulation toolkit
+pdbtk -- a cross-platform, efficient and practical PDB/PDBx-mmCIF structure file manipulation toolkit
 
-Version: 0.1.1
+Version: 0.2.0
 Author: Perry
 Source code: https://github.com/perry/pdbtk
 
-pdbtk is a command-line toolkit for manipulating PDB structure files.
+pdbtk is a command-line toolkit for manipulating PDB and PDBx/mmCIF structure files.
 It provides various operations for extracting, filtering, and transforming protein structure data.
 
 Usage:
   pdbtk [command]
 
 Available Commands:
-  get               Download a PDB file from the RCSB PDB database
-  extract           Extract chains from a PDB file
-  extract-seq       Extract sequences from chains in a PDB file
-  rename-chain      Rename a chain in a PDB file
-  renumber-residues Renumber residues in a PDB file
+  get               Download a structure file from the RCSB PDB database
+  extract           Extract chains from a PDB or mmCIF file
+  extract-seq       Extract sequences from chains in a PDB or mmCIF file
+  rename-chain      Rename a chain in a PDB or mmCIF file
+  renumber-residues Renumber residues in a PDB or mmCIF file
   version           Print the version number
   completion        Generate the autocompletion script for the specified shell
   help              Help about any command
 
 Flags:
-  -h, --help   help for pdbtk
+  -h, --help              help for pdbtk
+      --force-lossy-pdb   Allow writing PDB output that cannot faithfully represent the structure
 
 Use "pdbtk [command] --help" for more information about a command.
 ```
@@ -48,13 +98,13 @@ The file will be downloaded from https://files.rcsb.org/download/{pdb_code}.{for
 
 By default, the file is saved as {pdb_code}.pdb in the current directory.
 Use --output to specify a different filename or "-" to output to stdout.
-Use --format to specify the file format (pdb, pdb.gz).
+Use --format to specify the file format (pdb, pdb.gz, cif, cif.gz).
 
 Usage:
   pdbtk get [flags] <pdb_code>
 
 Flags:
-  -f, --format string   File format: pdb, pdb.gz (default: pdb)
+  -f, --format string   File format: pdb, pdb.gz, cif, cif.gz (default: pdb)
   -h, --help            help for get
   -o, --output string   Output file (default: {pdb_code}.{format}, use '-' for stdout)
 ```
@@ -69,6 +119,11 @@ $ pdbtk get 1A02
 Download as compressed PDB file
 ```bash
 $ pdbtk get --format pdb.gz 1A02
+```
+
+Download as an mmCIF file
+```bash
+$ pdbtk get --format cif 1A02
 ```
 
 Download to stdout and view the first 10 line with `head`
@@ -89,27 +144,30 @@ $ pdbtk get --format pdb.gz -o - 1A02 | gunzip -c - | pdbtk extract --chains B
 ## extract Usage
 
 ```text
-Extract specific chains from a PDB structure file.
+Extract specific chains from a PDB or PDBx/mmCIF structure file.
 The output can be written to a file or stdout (if no output file is specified).
 If no input file is specified, reads from stdin.
 
-Unless --keep-hetatm or --keep-waters is given, hetero-coordinate lines omitted by the
-Tufts PDB reader (waters, and hetero fragments after TER) are not written—use those flags to retain them.
-With --keep-hetatm, LINK records from the input file are also appended when both bond sites remain in the output (extracted polymer atoms plus kept hetero atoms).
+By default hetero atoms (ligands, ions, modified residues) belonging to the
+selected chains are kept and waters are dropped. Use --keep-waters to retain
+waters, or --no-hetatm to drop hetero atoms as well.
+
+LINK / struct_conn records are written whenever both bond sites survive filtering.
 
 Usage:
   pdbtk extract [flags] [input_file]
 
 Flags:
-  -c, --chains string       Comma-separated list of chain IDs to extract (use with filters below)
+  -c, --chains string       Comma-separated list of chain IDs to extract (default: all chains)
       --chain string        Alias for --chains
   -h, --help                help for extract
   -o, --output string       Output file (default: stdout)
       --altloc string       Filter by alternative location (ALTLOC) identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist
-      --keep-hetatm         Retain skipped HETATM records (excluding waters) for the extraction selection (chain list or all chains), plus matching LINK records
-      --keep-waters         Retain skipped HOH waters for the extraction selection
-
-At least one of --chains, --altloc, --keep-hetatm, or --keep-waters must be supplied.
+      --keep-waters         Retain waters matching the extraction selection
+      --no-hetatm           Drop all hetero atoms, keeping only ATOM records
+      --keep-hetatm         Retain hetero atoms (the default; accepted for backwards compatibility)
+      --in-format string    Input format: pdb or cif (default: inferred)
+      --out-format string   Output format: pdb or cif (default: inferred)
 ```
 
 ### Examples
@@ -124,41 +182,57 @@ $ pdbtk extract --chains A,B,C --output 1a02_chainABC.pdb 1a02.pdb
 $ pdbtk extract --chains A,B,C 1a02.pdb > 1a02_chainABC.pdb
 ```
 
-3. Extract from stdin
+3. Extract from an mmCIF file, writing mmCIF
+```bash
+$ pdbtk extract --chains A,B --output 1a02_chainAB.cif 1a02.cif
+```
+
+4. Convert an mmCIF file to PDB
+```bash
+$ pdbtk extract --chains A --out-format pdb 1a02.cif > 1a02_chainA.pdb
+```
+
+5. Extract from stdin
 ```bash
 $ cat 1a02.pdb | pdbtk extract --chains A,B,C
 ```
 
-4. Extract only ALTLOC B atoms
+6. Extract only ALTLOC B atoms
 ```bash
 $ pdbtk extract --chains A --altloc B 1a02.pdb
 ```
 
-5. Extract first ALTLOC when duplicates exist
+7. Extract first ALTLOC when duplicates exist
 ```bash
 $ pdbtk extract --chains A --altloc first 1a02.pdb
 ```
 
-6. Extract using --chain alias
+8. Keep only the polymer, dropping ligands, ions and waters
 ```bash
-$ pdbtk extract --chain A,B,C --output 1a02_chainABC.pdb 1a02.pdb
+$ pdbtk extract --chains A --no-hetatm 1a02.pdb
 ```
 
-7. Keep hetero fragments (excluding waters) for chain A—for example ions or ligands that appear after TER
+9. Keep waters alongside ligands and ions
 ```bash
-$ pdbtk extract --chains A --keep-hetatm 1a02.pdb
+$ pdbtk extract --chains A --keep-waters 1a02.pdb
 ```
 
-8. Keep waters together with hetero fragments
+10. Strip waters from a whole structure without selecting chains
 ```bash
-$ pdbtk extract --chains A --keep-hetatm --keep-waters 1a02.pdb
+$ pdbtk extract 1a02.pdb > 1a02_nowat.pdb
 ```
+
+**Note on hetero atoms:** as of 0.2.0 hetero atoms belonging to the selected
+chains are kept by default and waters are dropped. Earlier versions kept hetero
+records appearing before a chain's `TER` but discarded those after it unless
+`--keep-hetatm` was given. `--keep-hetatm` is still accepted and now has no
+effect, since it describes the default.
 
 ## extract-seq Usage
 
 ```text
-Extract sequences from chains in a PDB structure file.
-The output is in FASTA format with sequence IDs in the format: >{pdbfilename_no_dotpdb}_{chain}
+Extract sequences from chains in a PDB or PDBx/mmCIF structure file.
+The output is in FASTA format with sequence IDs in the format: >{filename_no_ext}_{chain}
 
 If no chains are specified, all chains will be extracted.
 If no input file is specified, reads from stdin.
@@ -167,11 +241,12 @@ Usage:
   pdbtk extract-seq [flags] [input_file]
 
 Flags:
-  -c, --chains string   Comma-separated list of chain IDs to extract (default: all chains)
-      --chain string    Alias for --chains
-  -h, --help            help for extract-seq
-  -o, --output string   Output file (default: stdout)
-      --seqres          Use SEQRES records instead of ATOM records
+  -c, --chains string    Comma-separated list of chain IDs to extract (default: all chains)
+      --chain string     Alias for --chains
+  -h, --help             help for extract-seq
+  -o, --output string    Output file (default: stdout)
+      --seqres           Use SEQRES records instead of ATOM records
+      --in-format string Input format: pdb or cif (default: inferred)
 ```
 
 ### Examples
@@ -211,10 +286,17 @@ $ pdbtk extract-seq --chain A,B 1a02.pdb > 1a02_chainAB.fasta
 $ find . -name "*.pdb" -exec pdbtk extract-seq {} \; > myseqs.fasta
 ```
 
+8. Extract sequences from an mmCIF file
+```bash
+$ pdbtk extract-seq --chains A,B 1a02.cif > 1a02_chainAB.fasta
+```
+
 **Note on sequence extraction:**
 - By default, `extract-seq` extracts sequences from ATOM records with gap characters (`-`) inserted for missing residue numbers.
 - Use `--seqres` to extract from SEQRES records instead (which contain the full sequence including regions not present in ATOM records).
 - If `--seqres` is specified but no SEQRES records are present, a warning is printed and no sequence is returned.
+- For mmCIF input, `--seqres` reads `pdbx_poly_seq_scheme` (falling back to `entity_poly_seq`).
+- Ligands, ions and waters are excluded; modified residues such as `MSE` are resolved to their parent residue.
 
 ## version Usage
 
@@ -233,7 +315,7 @@ Flags:
 Print the current version
 ```bash
 $ pdbtk version
-0.1.1
+0.2.0
 ```
 
 ## completion Usage
@@ -261,18 +343,22 @@ See [download.md](download.md#shell-completion) for more details.
 ## rename-chain Usage
 
 ```text
-Rename a chain in a PDB structure file.
-The chain ID must be a single character. The new chain ID must also be a single character.
+Rename a chain in a PDB or PDBx/mmCIF structure file.
 If the specified chain does not exist, the command will exit with an error.
 If the new chain ID already exists, a warning will be logged but the operation will continue.
+
+Chain IDs longer than one character are allowed for mmCIF output; writing them
+to a PDB file requires --force-lossy-pdb.
 
 Usage:
   pdbtk rename-chain [flags] <chain_id> [input_file]
 
 Flags:
-  -h, --help            help for rename-chain
-  -o, --output string   Output file (default: stdout)
-  -t, --to string       New chain ID (required)
+  -h, --help                help for rename-chain
+  -o, --output string       Output file (default: stdout)
+  -t, --to string           New chain ID (required)
+      --in-format string    Input format: pdb or cif (default: inferred)
+      --out-format string   Output format: pdb or cif (default: inferred)
 ```
 
 ### Examples
@@ -292,10 +378,15 @@ $ pdbtk rename-chain A --to B --output 1a02_renamed.pdb 1a02.pdb
 $ cat 1a02.pdb | pdbtk rename-chain A --to B
 ```
 
+4. Rename to a multi-character chain ID, writing mmCIF
+```bash
+$ pdbtk rename-chain A --to HEAVY --output 1a02_renamed.cif 1a02.cif
+```
+
 ## renumber-residues Usage
 
 ```text
-Renumber residues in a PDB structure file starting from a specified number.
+Renumber residues in a PDB or PDBx/mmCIF structure file starting from a specified number.
 By default, this preserves gaps in the residue sequence but offsets the numbering.
 Use --force-sequential to make all residues sequential without gaps.
 Use --exclude-zero to skip residue number zero when using negative start values.
@@ -310,6 +401,8 @@ Flags:
   -f, --force-sequential   Force sequential numbering without gaps
   -h, --help               help for renumber-residues
   -o, --output string      Output file (default: stdout)
+      --in-format string   Input format: pdb or cif (default: inferred)
+      --out-format string  Output format: pdb or cif (default: inferred)
 ```
 
 ### Examples

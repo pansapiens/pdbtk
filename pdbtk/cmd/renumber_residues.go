@@ -1,14 +1,9 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-
-	"github.com/TuftsBCB/io/pdb"
 	"github.com/spf13/cobra"
+
+	"github.com/perry/pdbtk/pdbtk/structure"
 )
 
 var (
@@ -21,8 +16,8 @@ var (
 
 var renumberResiduesCmd = &cobra.Command{
 	Use:   "renumber-residues [flags] [input_file]",
-	Short: "Renumber residues in a PDB file",
-	Long: `Renumber residues in a PDB structure file starting from a specified number.
+	Short: "Renumber residues in a PDB or mmCIF file",
+	Long: `Renumber residues in a PDB or PDBx/mmCIF structure file starting from a specified number.
 By default, this preserves gaps in the residue sequence but offsets the numbering.
 Use --force-sequential to make all residues sequential without gaps.
 Use --exclude-zero to skip residue number zero when using negative start values.
@@ -55,248 +50,116 @@ func init() {
 	renumberResiduesCmd.Flags().BoolVarP(&renumberForceSequential, "force-sequential", "f", false, "Force sequential numbering without gaps")
 	renumberResiduesCmd.Flags().BoolVarP(&renumberExcludeZero, "exclude-zero", "z", false, "Skip residue number zero when using negative start values")
 	renumberResiduesCmd.Flags().StringVarP(&renumberOutput, "output", "o", "", "Output file (default: stdout)")
+	addInFormatFlag(renumberResiduesCmd)
+	addOutFormatFlag(renumberResiduesCmd)
 }
 
 func runRenumberResidues(cmd *cobra.Command, args []string) error {
-	var inputFile string
-	var isStdin bool
+	inputFile, err := resolveInputPath(args)
+	if err != nil {
+		return err
+	}
 
-	if len(args) > 0 {
-		inputFile = args[0]
-		isStdin = false
-		// Check if input file exists
-		if err := CheckFileExists(inputFile); err != nil {
+	s, err := readStructure(inputFile)
+	if err != nil {
+		return err
+	}
+
+	if renumberChain != "" {
+		if err := checkChainsExist(s, []string{renumberChain}); err != nil {
 			return err
 		}
-		// Check if it's a PDB file
-		inputExt := strings.ToLower(filepath.Ext(inputFile))
-		if inputExt != ".pdb" {
-			return fmt.Errorf("only PDB files are supported, got: %s", inputExt)
-		}
-	} else {
-		// Check if stdin is available
-		stat, err := os.Stdin.Stat()
-		if err != nil {
-			return fmt.Errorf("failed to check stdin: %v", err)
-		}
-		if (stat.Mode() & os.ModeCharDevice) != 0 {
-			return fmt.Errorf("no input file specified and stdin is not available")
-		}
-		inputFile = ""
-		isStdin = true
 	}
 
-	// Validate chain ID if specified
-	if renumberChain != "" && len(renumberChain) != 1 {
-		return fmt.Errorf("chain ID must be a single character, got: %s", renumberChain)
-	}
+	renumberResidues(s, renumberStart, renumberChain, renumberForceSequential, renumberExcludeZero)
+	s.Renumber()
 
-	// Read the PDB file
-	var entry *pdb.Entry
-	var err error
-	if isStdin {
-		content, err := readAllFromStdin()
-		if err != nil {
-			return fmt.Errorf("failed to read from stdin: %v", err)
-		}
-		entry, err = readPDBFromContent(content)
-	} else {
-		entry, err = readPDB(inputFile)
-	}
+	outFormat, err := resolveOutputFormat(s, renumberOutput)
 	if err != nil {
-		return fmt.Errorf("failed to read PDB file: %v", err)
+		return err
 	}
-
-	// Renumber residues
-	renumberedEntry, err := renumberResiduesPDB(entry, renumberStart, renumberChain, renumberForceSequential, renumberExcludeZero)
-	if err != nil {
-		return fmt.Errorf("failed to renumber residues: %v", err)
-	}
-
-	// Build the full command line
-	commandLine := buildRenumberResiduesCommandLine(cmd, args, inputFile)
-
-	// Write the output
-	if renumberOutput == "" || renumberOutput == "-" {
-		// Write to stdout
-		return writePDBToWriter(renumberedEntry, os.Stdout, commandLine)
-	} else {
-		// Write to file
-		file, err := os.Create(renumberOutput)
-		if err != nil {
-			return fmt.Errorf("failed to create output file: %v", err)
-		}
-		defer file.Close()
-		return writePDBToWriter(renumberedEntry, file, commandLine)
-	}
+	return writeStructure(s, renumberOutput, outFormat, buildCommandLine(cmd, args))
 }
 
-func renumberResiduesPDB(entry *pdb.Entry, startNum int, chainID string, forceSequential bool, excludeZero bool) (*pdb.Entry, error) {
-	// Create a new entry
-	newEntry := &pdb.Entry{
-		Path:   entry.Path,
-		IdCode: entry.IdCode,
-		Chains: make([]*pdb.Chain, 0, len(entry.Chains)),
-		Scop:   entry.Scop,
-		Cath:   entry.Cath,
+// renumberResidues rewrites residue numbers in place. Renumbering is applied
+// per chain and per model, so every model of a chain ends up with matching
+// numbering.
+func renumberResidues(s *structure.Structure, start int, chainID string, sequential, excludeZero bool) {
+	type chainModel struct {
+		chain string
+		model int
 	}
 
-	// Determine which chains to process
-	var targetChain byte
-	if chainID != "" {
-		targetChain = chainID[0]
+	groups := make(map[chainModel][]*structure.Residue)
+	var order []chainModel
+	for _, r := range structure.Residues(s.Atoms) {
+		if chainID != "" && r.ChainID != chainID {
+			continue
+		}
+		k := chainModel{chain: r.ChainID, model: r.Model}
+		if _, seen := groups[k]; !seen {
+			order = append(order, k)
+		}
+		groups[k] = append(groups[k], r)
 	}
 
-	// Process each chain
-	for _, chain := range entry.Chains {
-		// Skip chains that don't match the target chain (if specified)
-		if chainID != "" && chain.Ident != targetChain {
-			// Copy the chain unchanged
-			newChain := copyChain(chain)
-			newEntry.Chains = append(newEntry.Chains, newChain)
+	// Residue numbers feed the LINK/struct_conn endpoints too, so record the
+	// mapping and apply it to connectivity afterwards.
+	remap := make(map[structure.ResidueKey]int)
+
+	for _, k := range order {
+		residues := groups[k]
+		if sequential {
+			n := start
+			for _, r := range residues {
+				if excludeZero && n == 0 {
+					n = 1
+				}
+				remap[r.ResidueKey] = n
+				n++
+			}
 			continue
 		}
 
-		// Renumber this chain
-		renumberedChain, err := renumberChainResidues(chain, startNum, forceSequential, excludeZero)
-		if err != nil {
-			return nil, fmt.Errorf("failed to renumber chain %c: %v", chain.Ident, err)
-		}
-
-		newEntry.Chains = append(newEntry.Chains, renumberedChain)
-	}
-
-	return newEntry, nil
-}
-
-func renumberChainResidues(chain *pdb.Chain, startNum int, forceSequential bool, excludeZero bool) (*pdb.Chain, error) {
-	// Create a new chain
-	newChain := &pdb.Chain{
-		Ident:    chain.Ident,
-		Sequence: chain.Sequence,
-		Models:   make([]*pdb.Model, len(chain.Models)),
-	}
-
-	// Process each model
-	for i, model := range chain.Models {
-		newModel := &pdb.Model{
-			Num:      model.Num,
-			Residues: make([]*pdb.Residue, len(model.Residues)),
-		}
-
-		if forceSequential {
-			// Force sequential numbering
-			currentNum := startNum
-			for j, residue := range model.Residues {
-				// Skip zero if excludeZero is true and we would assign zero
-				if excludeZero && currentNum == 0 {
-					currentNum = 1
-				}
-
-				newResidue := &pdb.Residue{
-					Name:          residue.Name,
-					SequenceNum:   currentNum,
-					InsertionCode: residue.InsertionCode,
-					Atoms:         residue.Atoms,
-				}
-				newModel.Residues[j] = newResidue
-				currentNum++
-			}
-		} else {
-			// Preserve gaps but offset numbering
-			if len(model.Residues) == 0 {
-				newChain.Models[i] = newModel
-				continue
-			}
-
-			// Find the minimum residue number to calculate offset
-			minResNum := model.Residues[0].SequenceNum
-			for _, residue := range model.Residues {
-				if residue.SequenceNum < minResNum {
-					minResNum = residue.SequenceNum
-				}
-			}
-
-			// Calculate offset
-			offset := startNum - minResNum
-
-			// Apply offset to all residues
-			for j, residue := range model.Residues {
-				newResNum := residue.SequenceNum + offset
-
-				// Skip zero if excludeZero is true and we would assign zero
-				if excludeZero && newResNum == 0 {
-					newResNum = 1
-				}
-
-				newResidue := &pdb.Residue{
-					Name:          residue.Name,
-					SequenceNum:   newResNum,
-					InsertionCode: residue.InsertionCode,
-					Atoms:         residue.Atoms,
-				}
-				newModel.Residues[j] = newResidue
+		min := residues[0].ResSeq
+		for _, r := range residues {
+			if r.ResSeq < min {
+				min = r.ResSeq
 			}
 		}
-
-		newChain.Models[i] = newModel
-	}
-
-	return newChain, nil
-}
-
-func copyChain(chain *pdb.Chain) *pdb.Chain {
-	newChain := &pdb.Chain{
-		Ident:    chain.Ident,
-		Sequence: chain.Sequence,
-		Models:   make([]*pdb.Model, len(chain.Models)),
-	}
-
-	for i, model := range chain.Models {
-		newModel := &pdb.Model{
-			Num:      model.Num,
-			Residues: make([]*pdb.Residue, len(model.Residues)),
-		}
-
-		for j, residue := range model.Residues {
-			newResidue := &pdb.Residue{
-				Name:        residue.Name,
-				SequenceNum: residue.SequenceNum,
+		offset := start - min
+		for _, r := range residues {
+			n := r.ResSeq + offset
+			if excludeZero && n == 0 {
+				n = 1
 			}
-			newModel.Residues[j] = newResidue
+			remap[r.ResidueKey] = n
 		}
-
-		newChain.Models[i] = newModel
 	}
 
-	return newChain
-}
-
-func buildRenumberResiduesCommandLine(cmd *cobra.Command, args []string, inputFile string) string {
-	var parts []string
-
-	// Add the command name
-	parts = append(parts, "pdbtk", "renumber-residues")
-
-	// Add flags
-	parts = append(parts, "--start", strconv.Itoa(renumberStart))
-	if renumberChain != "" {
-		parts = append(parts, "--chain", renumberChain)
+	// Link endpoints carry no model number, so index the mapping without one.
+	type linkKey struct {
+		chain   string
+		resSeq  int
+		insCode string
 	}
-	if renumberForceSequential {
-		parts = append(parts, "--force-sequential")
+	linkRemap := make(map[linkKey]int, len(remap))
+	for k, n := range remap {
+		linkRemap[linkKey{chain: k.ChainID, resSeq: k.ResSeq, insCode: k.InsCode}] = n
 	}
-	if renumberExcludeZero {
-		parts = append(parts, "--exclude-zero")
+	applyLinkRemap := func(ref *structure.AtomRef) {
+		if n, ok := linkRemap[linkKey{chain: ref.ChainID, resSeq: ref.ResSeq, insCode: ref.InsCode}]; ok {
+			ref.ResSeq = n
+		}
 	}
-	if renumberOutput != "" {
-		parts = append(parts, "--output", renumberOutput)
+	for i := range s.Links {
+		applyLinkRemap(&s.Links[i].A)
+		applyLinkRemap(&s.Links[i].B)
 	}
 
-	// Add input file if not from stdin
-	if inputFile != "" {
-		parts = append(parts, inputFile)
+	for _, a := range s.Atoms {
+		if n, ok := remap[structure.KeyOf(a)]; ok {
+			a.ResSeq = n
+		}
 	}
-
-	return strings.Join(parts, " ")
 }

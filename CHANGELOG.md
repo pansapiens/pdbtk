@@ -7,14 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-07
+
 ### Added
+- PDBx/mmCIF support: every command reads and writes both PDB and mmCIF, so `pdbtk` also works as a format converter
+- Input format is detected from the file extension or contents (including gzipped input); `--in-format` overrides it
+- Output format follows the `--output` extension, else the input format; `--out-format` overrides it
+- `--force-lossy-pdb` to permit writing PDB output that cannot faithfully represent the structure
+- `--no-hetatm` flag for `extract` to drop hetero atoms
+- `cif` and `cif.gz` formats restored for the `get` command
 - `version` command to print the current version number
 - Version information displayed in help text
 - `--chain` as alias for `--chains` flag in `extract` and `extract-seq` commands
-- `--keep-hetatm` and `--keep-waters` flags for `extract` to retain skipped HETATM lines (hetero residues after TER and optional HOH waters) matching the extraction selection. `extract` also emits `LINK` records with `--keep-hetatm` when both parsed bond sites match filtering criteria.
+- PDB output now includes `SEQRES` records, and `LINK` records whenever both bond sites survive filtering
 
 ### Changed
-- `extract` requires at least one of `--chains`, `--altloc`, `--keep-hetatm`, or `--keep-waters`
+- **Breaking:** `extract` now keeps hetero atoms belonging to the selected chains by default and drops waters. Previously hetero records before a chain's `TER` were kept and those after it were dropped unless `--keep-hetatm` was given. `--keep-hetatm` is still accepted but has no effect.
+- **Breaking:** writing mmCIF-only features (chain IDs longer than one character, more than 99,999 atoms, residue names longer than three characters) to a PDB file is now an error instead of silent corruption; pass `--force-lossy-pdb` to convert anyway
+- Chain IDs are no longer restricted to a single character, since mmCIF permits longer identifiers
+- `renumber-residues` now errors when `--chain` names a chain that does not exist
+- `HEADER` records are written with the entry ID in columns 63-66 as the format specifies, rather than in the classification field
+- Replaced the internal structure model and the `github.com/TuftsBCB/io` dependency with a format-neutral model and native PDB/mmCIF codecs
+
+### Fixed
+- Residue names are no longer corrupted on output. Nucleic acid residues were rewritten to amino acids (`DT` became `THR`) and ligands became `UNK`, because the internal model stored only single-letter residue codes.
+- Occupancy and B-factor values are preserved instead of being replaced with `1.00` and `20.00`
+- Element symbols are preserved instead of being re-derived from the atom name (`ZN` was written as `Z`)
+- Waters and hetero records following a `TER` are no longer silently dropped while parsing
+
+### Removed
+- `github.com/TuftsBCB/io`, `github.com/TuftsBCB/seq` and `github.com/TuftsBCB/structure` dependencies
 
 ## [0.1.1] - 2025-01-27
 

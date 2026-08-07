@@ -5,56 +5,64 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-
-	"github.com/perry/pdbtk/pdbtk/cmd"
 )
 
-func TestExtractAltLocFromAtomName(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected byte
-	}{
-		{"CA A", 'A'},
-		{"CB B", 'B'},
-		{"N  A", 'A'},
-		{"CA", ' '},
-		{"CB", ' '},
-		{"N", ' '},
-		{"CA Z", 'Z'},
-		{"", ' '},
-		{"   ", ' '},
-	}
+func TestResidueNameAndBFactorFidelity(t *testing.T) {
+	// DNA residues (DT), ions (ZN) and B-factors were previously destroyed by
+	// round-tripping through a single-letter residue model.
+	testPDB := `HEADER                                                        TEST
+ATOM      1  O5'  DT A   1       4.203  37.609  50.803  1.00 52.72           O
+ATOM      2  C5'  DT A   1       3.376  36.889  51.712  0.50 12.34           C
+HETATM    3 ZN    ZN A 709      16.975  20.527  35.023  1.00 26.90          ZN
+END`
+	writeTestPDB(t, "test_fidelity.pdb", testPDB)
+	defer os.Remove("test_fidelity.pdb")
 
-	for _, test := range tests {
-		result := cmd.ExtractAltLocFromAtomName(test.input)
-		if result != test.expected {
-			t.Errorf("extractAltLocFromAtomName(%q) = %c, expected %c", test.input, result, test.expected)
+	out := runPDBTK(t, "extract", "--chain", "A", "test_fidelity.pdb")
+
+	for _, want := range []string{
+		"ATOM      1  O5'  DT A   1       4.203  37.609  50.803  1.00 52.72           O",
+		"ATOM      2  C5'  DT A   1       3.376  36.889  51.712  0.50 12.34           C",
+		"HETATM    4 ZN    ZN A 709      16.975  20.527  35.023  1.00 26.90          ZN",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing expected record:\n want %q\n got:\n%s", want, out)
 		}
 	}
 }
 
-func TestRemoveAltLocFromAtomName(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"CA A", "CA"},
-		{"CB B", "CB"},
-		{"N  A", "N"},
-		{"CA", "CA"},
-		{"CB", "CB"},
-		{"N", "N"},
-		{"CA Z", "CA"},
-		{"", ""},
-		{"   ", ""},
-	}
+func TestUnknownLigandNotRenamedToUNK(t *testing.T) {
+	testPDB := `HEADER                                                        TEST
+ATOM      1  CA  ALA A   1       1.000   2.000   3.000  1.00 10.00           C
+HETATM    2  C1  GLC A 200       4.000   5.000   6.000  1.00 11.00           C
+END`
+	writeTestPDB(t, "test_ligand.pdb", testPDB)
+	defer os.Remove("test_ligand.pdb")
 
-	for _, test := range tests {
-		result := cmd.RemoveAltLocFromAtomName(test.input)
-		if result != test.expected {
-			t.Errorf("removeAltLocFromAtomName(%q) = %q, expected %q", test.input, result, test.expected)
-		}
+	out := runPDBTK(t, "extract", "--chain", "A", "test_ligand.pdb")
+	if strings.Contains(out, "UNK") {
+		t.Errorf("ligand residue name was replaced with UNK:\n%s", out)
 	}
+	if !strings.Contains(out, "GLC") {
+		t.Errorf("expected ligand GLC to be preserved:\n%s", out)
+	}
+}
+
+func writeTestPDB(t *testing.T, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(name, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+}
+
+func runPDBTK(t *testing.T, args ...string) string {
+	t.Helper()
+	c := exec.Command("../bin/pdbtk", args...)
+	out, err := c.Output()
+	if err != nil {
+		t.Fatalf("pdbtk %v failed: %v", args, err)
+	}
+	return string(out)
 }
 
 func TestAltLocPreservation(t *testing.T) {

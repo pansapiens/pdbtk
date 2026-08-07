@@ -8,7 +8,7 @@ build:
 # Clean build artifacts
 clean:
 	rm -f bin/pdbtk
-	rm -f test*.pdb
+	rm -f test*.pdb test*.cif
 
 # Run tests - we exclude test discovery in the 'repos' folder
 test:

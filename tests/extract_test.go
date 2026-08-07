@@ -155,7 +155,7 @@ func countLINKLines(output string) int {
 	return n
 }
 
-func TestExtractKeepHetatmFlags(t *testing.T) {
+func TestExtractHetatmDefaults(t *testing.T) {
 	testPDB := `HEADER    TEST STRUCTURE                                   01-JAN-01   TEST
 ATOM      1  N   ALA A   1      10.000  10.000  10.000  1.00 11.18           N  
 ATOM      2  CA  ALA A   1      11.000  10.000  10.000  1.00 10.53           C  
@@ -181,64 +181,72 @@ END
 		return string(out), err
 	}
 
+	// Default: hetero atoms of the selected chain are kept, waters dropped.
+	// The zinc sits after TER, which older versions silently discarded.
 	out, err := run("extract", "--chains", "A", "test_extract_het.pdb")
 	if err != nil {
 		t.Fatalf("extract: %v\n%s", err, out)
 	}
-	if countHetatmLines(out) != 0 {
-		t.Fatalf("expected 0 HETATM without keep flags, got %d", countHetatmLines(out))
-	}
-	if countLINKLines(out) != 0 {
-		t.Fatalf("expected no LINK lines without keep-hetatm, got %d", countLINKLines(out))
-	}
-
-	out, err = run("extract", "--chains", "A", "--keep-hetatm", "test_extract_het.pdb")
-	if err != nil {
-		t.Fatalf("extract keep-hetatm: %v\n%s", err, out)
-	}
 	if n := countHetatmLines(out); n != 1 {
-		t.Fatalf("expected 1 non-water HETATM for chain A, got %d", n)
+		t.Fatalf("expected 1 hetero atom (ZN) by default, got %d\n%s", n, out)
 	}
 	if !strings.Contains(out, " ZN ") || strings.Contains(out, "HOH") {
-		t.Fatalf("expected ZN hetero without HOH, output:\n%s", out)
+		t.Fatalf("expected ZN kept and HOH dropped, output:\n%s", out)
 	}
-	if countLINKLines(out) != 1 || !strings.Contains(out, "LINK") {
-		t.Fatalf("expected exactly one LINK with --keep-hetatm chain A, output:\n%s", out)
+	if countLINKLines(out) != 1 {
+		t.Fatalf("expected the LINK between ALA A 1 and ZN A 99 to survive, output:\n%s", out)
 	}
 
-	out, err = run("extract", "--chains", "A", "--keep-waters", "test_extract_het.pdb")
+	// --no-hetatm drops hetero atoms, and with them the LINK.
+	out, err = run("extract", "--chains", "A", "--no-hetatm", "test_extract_het.pdb")
 	if err != nil {
-		t.Fatalf("extract keep-waters: %v\n%s", err, out)
+		t.Fatalf("extract --no-hetatm: %v\n%s", err, out)
 	}
-	if n := countHetatmLines(out); n != 1 {
-		t.Fatalf("expected 1 water HETATM for chain A, got %d", n)
-	}
-	if !strings.Contains(out, "HOH") || strings.Contains(out, "LIG") {
-		t.Fatalf("expected HOH without LIG, output:\n%s", out)
+	if n := countHetatmLines(out); n != 0 {
+		t.Fatalf("expected 0 HETATM with --no-hetatm, got %d", n)
 	}
 	if countLINKLines(out) != 0 {
-		t.Fatalf("expected no LINK lines with --keep-waters only")
+		t.Fatalf("expected no LINK lines with --no-hetatm, output:\n%s", out)
 	}
 
-	out, err = run("extract", "--chains", "A", "--keep-hetatm", "--keep-waters", "test_extract_het.pdb")
+	// --keep-waters adds waters on top of the default.
+	out, err = run("extract", "--chains", "A", "--keep-waters", "test_extract_het.pdb")
 	if err != nil {
-		t.Fatalf("extract both keeps: %v\n%s", err, out)
+		t.Fatalf("extract --keep-waters: %v\n%s", err, out)
 	}
 	if n := countHetatmLines(out); n != 2 {
-		t.Fatalf("expected 2 HETATM (LIG + HOH), got %d", n)
+		t.Fatalf("expected 2 HETATM (ZN + HOH), got %d\n%s", n, out)
 	}
-	if strings.Contains(out, "LIG B") || strings.Contains(out, "HOH B") {
-		t.Fatalf("chain B hetero leaked into chain A extraction:\n%s", out)
+	if !strings.Contains(out, "HOH") || strings.Contains(out, "LIG") {
+		t.Fatalf("expected HOH without chain B LIG, output:\n%s", out)
 	}
 
-	out, err = run("extract", "--keep-hetatm", "test_extract_het.pdb")
+	// --keep-hetatm is accepted for backwards compatibility and changes nothing.
+	out, err = run("extract", "--chains", "A", "--keep-hetatm", "test_extract_het.pdb")
 	if err != nil {
-		t.Fatalf("extract keep-hetatm all chains: %v\n%s", err, out)
+		t.Fatalf("extract --keep-hetatm: %v\n%s", err, out)
+	}
+	if n := countHetatmLines(out); n != 1 {
+		t.Fatalf("expected --keep-hetatm to match the default, got %d HETATM", n)
+	}
+
+	// --keep-hetatm and --no-hetatm contradict each other.
+	if out, err := run("extract", "--chains", "A", "--keep-hetatm", "--no-hetatm", "test_extract_het.pdb"); err == nil {
+		t.Fatalf("expected an error combining --keep-hetatm and --no-hetatm, got:\n%s", out)
+	}
+
+	// All chains: both ligands survive, waters still dropped.
+	out, err = run("extract", "test_extract_het.pdb")
+	if err != nil {
+		t.Fatalf("extract all chains: %v\n%s", err, out)
 	}
 	if n := countHetatmLines(out); n != 2 {
-		t.Fatalf("expected non-water ligands on A and B, got %d HETATM", n)
+		t.Fatalf("expected ZN on A and LIG on B, got %d HETATM\n%s", n, out)
 	}
 	if !strings.Contains(out, "ZN A") || !strings.Contains(out, "LIG B") {
 		t.Fatalf("expected ZN on chain A and LIG on chain B, output:\n%s", out)
+	}
+	if strings.Contains(out, "HOH") {
+		t.Fatalf("waters should be dropped by default, output:\n%s", out)
 	}
 }

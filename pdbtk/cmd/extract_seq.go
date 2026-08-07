@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/TuftsBCB/io/pdb"
 	"github.com/spf13/cobra"
+
+	"github.com/perry/pdbtk/pdbtk/structure"
 )
 
 var (
@@ -19,9 +20,9 @@ var (
 
 var extractSeqCmd = &cobra.Command{
 	Use:   "extract-seq [flags] [input_file]",
-	Short: "Extract sequences from chains in a PDB file",
-	Long: `Extract sequences from chains in a PDB structure file.
-The output is in FASTA format with sequence IDs in the format: >{pdbfilename_no_dotpdb}_{chain}
+	Short: "Extract sequences from chains in a PDB or mmCIF file",
+	Long: `Extract sequences from chains in a PDB or PDBx/mmCIF structure file.
+The output is in FASTA format with sequence IDs in the format: >{filename_no_ext}_{chain}
 
 If no chains are specified, all chains will be extracted.
 If no input file is specified, reads from stdin.
@@ -32,6 +33,9 @@ Examples:
 
   # Extract sequences from specific chains
   pdbtk extract-seq --chains A,B 1a02.pdb > 1a02_chainAB.fasta
+
+  # Extract from an mmCIF file
+  pdbtk extract-seq --chains A,B --output 1a02_chainAB.fasta 1a02.cif
 
   # Extract all chains to a file
   pdbtk extract-seq --output 1a02_all.fasta 1a02.pdb
@@ -47,178 +51,134 @@ func init() {
 	extractSeqCmd.Flags().StringVar(&seqChains, "chain", "", "Alias for --chains")
 	extractSeqCmd.Flags().StringVarP(&seqOutput, "output", "o", "", "Output file (default: stdout)")
 	extractSeqCmd.Flags().BoolVar(&useSeqRes, "seqres", false, "Use SEQRES records instead of ATOM records")
+	addInFormatFlag(extractSeqCmd)
 }
 
 func runExtractSeq(cmd *cobra.Command, args []string) error {
-	var inputFile string
-	var isStdin bool
-
-	if len(args) > 0 {
-		inputFile = args[0]
-		isStdin = false
-		// Check if input file exists
-		if err := CheckFileExists(inputFile); err != nil {
-			return err
-		}
-		// Check if it's a PDB file
-		inputExt := strings.ToLower(filepath.Ext(inputFile))
-		if inputExt != ".pdb" {
-			return fmt.Errorf("only PDB files are supported, got: %s", inputExt)
-		}
-	} else {
-		// Check if stdin is available
-		stat, err := os.Stdin.Stat()
-		if err != nil {
-			return fmt.Errorf("failed to check stdin: %v", err)
-		}
-		if (stat.Mode() & os.ModeCharDevice) != 0 {
-			return fmt.Errorf("no input file specified and stdin is not available")
-		}
-		inputFile = ""
-		isStdin = true
-	}
-
-	// Parse chain IDs if specified
-	var chainList []string
-	if seqChains != "" {
-		chainList = strings.Split(seqChains, ",")
-		for i, chain := range chainList {
-			chainList[i] = strings.TrimSpace(chain)
-			if len(chainList[i]) != 1 {
-				return fmt.Errorf("invalid chain ID: %s (must be single character)", chainList[i])
-			}
-		}
-	}
-
-	// Read the PDB file
-	var entry *pdb.Entry
-	var err error
-	if isStdin {
-		content, err := readAllFromStdin()
-		if err != nil {
-			return fmt.Errorf("failed to read from stdin: %v", err)
-		}
-		entry, err = readPDBFromContent(content)
-	} else {
-		entry, err = readPDB(inputFile)
-	}
+	inputFile, err := resolveInputPath(args)
 	if err != nil {
-		return fmt.Errorf("failed to read PDB file: %v", err)
+		return err
 	}
 
-	// Extract sequences
-	sequences, err := extractSequencesPDB(entry, chainList, useSeqRes)
+	s, err := readStructure(inputFile)
 	if err != nil {
-		return fmt.Errorf("failed to extract sequences: %v", err)
+		return err
 	}
 
-	// Write the output
+	chainList := splitChainList(seqChains)
+	order, sequences := extractSequences(s, chainList, useSeqRes)
+
 	if seqOutput == "" || seqOutput == "-" {
-		// Write to stdout
-		return writeFASTAToWriter(sequences, os.Stdout, inputFile)
-	} else {
-		// Write to file
-		file, err := os.Create(seqOutput)
-		if err != nil {
-			return fmt.Errorf("failed to create output file: %v", err)
-		}
-		defer file.Close()
-		return writeFASTAToWriter(sequences, file, inputFile)
+		return writeFASTAToWriter(order, sequences, os.Stdout, inputFile)
 	}
+	file, err := os.Create(seqOutput)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %v", err)
+	}
+	defer file.Close()
+	return writeFASTAToWriter(order, sequences, file, inputFile)
 }
 
-func extractSequencesPDB(entry *pdb.Entry, chainList []string, useSeqRes bool) (map[string]string, error) {
+// extractSequences returns the chain IDs in file order alongside their
+// sequences, so FASTA output is deterministic.
+func extractSequences(s *structure.Structure, chainList []string, fromSeqRes bool) ([]string, map[string]string) {
+	wanted := make(map[string]bool, len(chainList))
+	for _, id := range chainList {
+		wanted[id] = true
+	}
+	want := func(id string) bool { return len(wanted) == 0 || wanted[id] }
+
 	sequences := make(map[string]string)
+	var order []string
 
-	// If no chains specified, extract all chains
-	if len(chainList) == 0 {
-		for _, chain := range entry.Chains {
-			sequence := extractChainSequence(chain, useSeqRes)
-			if sequence != "" {
-				sequences[string(chain.Ident)] = sequence
+	if fromSeqRes {
+		for _, cs := range s.SeqRes {
+			if !want(cs.ChainID) {
+				continue
+			}
+			var b strings.Builder
+			for _, mon := range cs.Residues {
+				b.WriteByte(structure.OneLetter(mon, s.ModRes))
+			}
+			if b.Len() > 0 {
+				order = append(order, cs.ChainID)
+				sequences[cs.ChainID] = b.String()
 			}
 		}
-	} else {
-		// Extract specified chains
-		validChains := make(map[byte]bool)
-		for _, chainID := range chainList {
-			if len(chainID) == 1 {
-				validChains[chainID[0]] = true
+		for _, id := range s.ChainIDs() {
+			if want(id) && sequences[id] == "" {
+				fmt.Fprintf(os.Stderr, "Warning: --seqres specified but no SEQRES records found for chain %s\n", id)
 			}
 		}
-
-		for _, chain := range entry.Chains {
-			if validChains[chain.Ident] {
-				sequence := extractChainSequence(chain, useSeqRes)
-				if sequence != "" {
-					sequences[string(chain.Ident)] = sequence
-				}
-			}
-		}
+		return order, sequences
 	}
 
-	return sequences, nil
+	// Build from coordinates, using the first model only and inserting gap
+	// characters where residue numbering skips ahead.
+	byChain := make(map[string][]*structure.Residue)
+	firstModel := 0
+	for _, a := range s.Atoms {
+		if firstModel == 0 {
+			firstModel = a.Model
+		}
+	}
+	for _, r := range structure.Residues(s.Atoms) {
+		if r.Model != firstModel || !want(r.ChainID) || !isPolymerResidue(r, s.ModRes) {
+			continue
+		}
+		byChain[r.ChainID] = append(byChain[r.ChainID], r)
+	}
+
+	for _, id := range s.ChainIDs() {
+		residues, ok := byChain[id]
+		if !ok || len(residues) == 0 {
+			continue
+		}
+		var b strings.Builder
+		prev := residues[0].ResSeq - 1
+		for _, r := range residues {
+			for gap := r.ResSeq - prev - 1; gap > 0; gap-- {
+				b.WriteByte('-')
+			}
+			b.WriteByte(structure.OneLetter(r.ResName, s.ModRes))
+			prev = r.ResSeq
+		}
+		if b.Len() > 0 {
+			order = append(order, id)
+			sequences[id] = b.String()
+		}
+	}
+	return order, sequences
 }
 
-func extractChainSequence(chain *pdb.Chain, useSeqRes bool) string {
-	// If --seqres flag is set, only use SEQRES records
-	if useSeqRes {
-		if len(chain.Sequence) > 0 {
-			var sequence strings.Builder
-			for _, residue := range chain.Sequence {
-				sequence.WriteByte(byte(residue))
-			}
-			return sequence.String()
+// isPolymerResidue decides whether a residue contributes to a chain's
+// sequence. ATOM records always do; hetero residues only when they name a
+// known polymer component (MSE, SEP, ...), which keeps ligands, ions and
+// waters out of the FASTA output.
+func isPolymerResidue(r *structure.Residue, modres map[string]string) bool {
+	for _, a := range r.Atoms {
+		if !a.Hetatm {
+			return true
 		}
-		// No SEQRES available - warn the user
-		fmt.Fprintf(os.Stderr, "Warning: --seqres flag specified but no SEQRES records found for chain %c\n", chain.Ident)
-		return ""
-	}
-
-	// Default behavior: extract sequence from ATOM records with gap handling
-	if len(chain.Models) == 0 {
-		return ""
-	}
-
-	// Use the first model
-	model := chain.Models[0]
-	if len(model.Residues) == 0 {
-		return ""
-	}
-
-	var sequence strings.Builder
-	prevResNum := model.Residues[0].SequenceNum - 1
-
-	for _, residue := range model.Residues {
-		// Add gap characters for missing residues
-		gap := residue.SequenceNum - prevResNum - 1
-		if gap > 0 {
-			for i := 0; i < gap; i++ {
-				sequence.WriteByte('-')
-			}
+		if a.IsWater() {
+			return false
 		}
-
-		// residue.Name is already a single-letter code (seq.Residue type is a byte)
-		sequence.WriteByte(byte(residue.Name))
-		prevResNum = residue.SequenceNum
 	}
-
-	return sequence.String()
+	if _, ok := modres[strings.ToUpper(strings.TrimSpace(r.ResName))]; ok {
+		return true
+	}
+	return structure.IsPolymerComponent(r.ResName)
 }
 
-func writeFASTAToWriter(sequences map[string]string, writer io.Writer, inputFile string) error {
-	// Get base filename without extension
-	var baseName string
-	if inputFile == "" {
-		baseName = "stdin"
-	} else {
+func writeFASTAToWriter(order []string, sequences map[string]string, writer io.Writer, inputFile string) error {
+	baseName := "stdin"
+	if inputFile != "" {
 		baseName = strings.TrimSuffix(filepath.Base(inputFile), filepath.Ext(inputFile))
 	}
 
-	// Write sequences in FASTA format
-	for chainID, sequence := range sequences {
+	for _, chainID := range order {
+		sequence := sequences[chainID]
 		fmt.Fprintf(writer, ">%s_%s\n", baseName, chainID)
-		// Write sequence in lines of 80 characters
 		for i := 0; i < len(sequence); i += 80 {
 			end := i + 80
 			if end > len(sequence) {
@@ -228,10 +188,8 @@ func writeFASTAToWriter(sequences map[string]string, writer io.Writer, inputFile
 		}
 	}
 
-	// Final newline
-	if len(sequences) > 0 {
+	if len(order) > 0 {
 		fmt.Fprintf(writer, "\n")
 	}
-
 	return nil
 }
