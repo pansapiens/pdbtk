@@ -22,7 +22,7 @@ var getCmd = &cobra.Command{
 	Long: `Download a structure file from the RCSB PDB database using the PDB code.
 The file will be downloaded from https://files.rcsb.org/download/{pdb_code}.{format}
 
-By default, the file is saved as {pdb_code}.pdb in the current directory.
+By default, the file is saved as {pdb_code}.{format} in the current directory.
 Use --output to specify a different filename or "-" to output to stdout.
 Use --format to specify the file format (pdb, pdb.gz, cif, cif.gz).
 
@@ -46,8 +46,8 @@ Examples:
 }
 
 func init() {
-	getCmd.Flags().StringVarP(&getOutput, "output", "o", "", "Output file (default: {pdb_code}.pdb, use '-' for stdout)")
-	getCmd.Flags().StringVarP(&getFormat, "format", "f", "pdb", "File format: pdb, pdb.gz, cif, cif.gz (default: pdb)")
+	getCmd.Flags().StringVarP(&getOutput, "output", "o", "", "Output file (default: {pdb_code}.{format}, use '-' for stdout)")
+	getCmd.Flags().StringVarP(&getFormat, "format", "f", "pdb", "File format: pdb, pdb.gz, cif, cif.gz")
 }
 
 func runGet(cmd *cobra.Command, args []string) error {

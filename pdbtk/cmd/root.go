@@ -34,7 +34,7 @@ var versionCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&forceLossyPDB, "force-lossy-pdb", false,
-		"Allow writing PDB output that cannot faithfully represent the structure (long chain IDs, >99999 atoms, 5-character residue names)")
+		"Allow writing PDB output that cannot faithfully represent the structure (long chain IDs, long residue names, out-of-range coordinates)")
 
 	rootCmd.AddCommand(extractCmd)
 	rootCmd.AddCommand(extractSeqCmd)

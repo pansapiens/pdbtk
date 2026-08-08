@@ -61,7 +61,7 @@ Examples:
 }
 
 func init() {
-	extractCmd.Flags().StringVarP(&chains, "chains", "c", "", "Comma-separated list of chain IDs to extract")
+	extractCmd.Flags().StringVarP(&chains, "chains", "c", "", "Comma-separated list of chain IDs to extract (default: all chains)")
 	extractCmd.Flags().StringVar(&chains, "chain", "", "Alias for --chains")
 	extractCmd.Flags().StringVarP(&output, "output", "o", "", "Output file (default: stdout)")
 	extractCmd.Flags().StringVar(&altloc, "altloc", "", "Filter by ALTLOC identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist")

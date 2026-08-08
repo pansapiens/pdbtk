@@ -91,7 +91,7 @@ Available Commands:
 
 Flags:
   -h, --help              help for pdbtk
-      --force-lossy-pdb   Allow writing PDB output that cannot faithfully represent the structure
+      --force-lossy-pdb   Allow writing PDB output that cannot faithfully represent the structure (long chain IDs, long residue names, out-of-range coordinates)
 
 Use "pdbtk [command] --help" for more information about a command.
 ```
@@ -99,10 +99,10 @@ Use "pdbtk [command] --help" for more information about a command.
 ## get Usage
 
 ```text
-Download a PDB file from the RCSB PDB database using the PDB code.
+Download a structure file from the RCSB PDB database using the PDB code.
 The file will be downloaded from https://files.rcsb.org/download/{pdb_code}.{format}
 
-By default, the file is saved as {pdb_code}.pdb in the current directory.
+By default, the file is saved as {pdb_code}.{format} in the current directory.
 Use --output to specify a different filename or "-" to output to stdout.
 Use --format to specify the file format (pdb, pdb.gz, cif, cif.gz).
 
@@ -110,7 +110,7 @@ Usage:
   pdbtk get [flags] <pdb_code>
 
 Flags:
-  -f, --format string   File format: pdb, pdb.gz, cif, cif.gz (default: pdb)
+  -f, --format string   File format: pdb, pdb.gz, cif, cif.gz (default "pdb")
   -h, --help            help for get
   -o, --output string   Output file (default: {pdb_code}.{format}, use '-' for stdout)
 ```
@@ -164,16 +164,16 @@ Usage:
   pdbtk extract [flags] [input_file]
 
 Flags:
-  -c, --chains string       Comma-separated list of chain IDs to extract (default: all chains)
+      --altloc string       Filter by ALTLOC identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist
       --chain string        Alias for --chains
+  -c, --chains string       Comma-separated list of chain IDs to extract (default: all chains)
   -h, --help                help for extract
-  -o, --output string       Output file (default: stdout)
-      --altloc string       Filter by alternative location (ALTLOC) identifier (e.g., A, B) or 'first' to take first ALTLOC when duplicates exist
+      --in-format string    Input format: pdb or cif (default: inferred from the file extension or contents)
+      --keep-hetatm         Retain hetero atoms (the default; accepted for backwards compatibility)
       --keep-waters         Retain waters matching the extraction selection
       --no-hetatm           Drop all hetero atoms, keeping only ATOM records
-      --keep-hetatm         Retain hetero atoms (the default; accepted for backwards compatibility)
-      --in-format string    Input format: pdb or cif (default: inferred)
-      --out-format string   Output format: pdb or cif (default: inferred)
+      --out-format string   Output format: pdb or cif (default: inferred from --output, else same as the input)
+  -o, --output string       Output file (default: stdout)
 ```
 
 ### Examples
@@ -247,12 +247,12 @@ Usage:
   pdbtk extract-seq [flags] [input_file]
 
 Flags:
-  -c, --chains string    Comma-separated list of chain IDs to extract (default: all chains)
-      --chain string     Alias for --chains
-  -h, --help             help for extract-seq
-  -o, --output string    Output file (default: stdout)
-      --seqres           Use SEQRES records instead of ATOM records
-      --in-format string Input format: pdb or cif (default: inferred)
+      --chain string       Alias for --chains
+  -c, --chains string      Comma-separated list of chain IDs to extract (default: all chains)
+  -h, --help               help for extract-seq
+      --in-format string   Input format: pdb or cif (default: inferred from the file extension or contents)
+  -o, --output string      Output file (default: stdout)
+      --seqres             Use SEQRES records instead of ATOM records
 ```
 
 ### Examples
@@ -361,10 +361,10 @@ Usage:
 
 Flags:
   -h, --help                help for rename-chain
+      --in-format string    Input format: pdb or cif (default: inferred from the file extension or contents)
+      --out-format string   Output format: pdb or cif (default: inferred from --output, else same as the input)
   -o, --output string       Output file (default: stdout)
   -t, --to string           New chain ID (required)
-      --in-format string    Input format: pdb or cif (default: inferred)
-      --out-format string   Output format: pdb or cif (default: inferred)
 ```
 
 ### Examples
@@ -401,14 +401,14 @@ Usage:
   pdbtk renumber-residues [flags] [input_file]
 
 Flags:
-  -s, --start int          Starting residue number (can be negative) (default 1)
-  -c, --chain string       Chain ID to renumber (default: all chains)
-  -z, --exclude-zero       Skip residue number zero when using negative start values
-  -f, --force-sequential   Force sequential numbering without gaps
-  -h, --help               help for renumber-residues
-  -o, --output string      Output file (default: stdout)
-      --in-format string   Input format: pdb or cif (default: inferred)
-      --out-format string  Output format: pdb or cif (default: inferred)
+  -c, --chain string        Chain ID to renumber (default: all chains)
+  -z, --exclude-zero        Skip residue number zero when using negative start values
+  -f, --force-sequential    Force sequential numbering without gaps
+  -h, --help                help for renumber-residues
+      --in-format string    Input format: pdb or cif (default: inferred from the file extension or contents)
+      --out-format string   Output format: pdb or cif (default: inferred from --output, else same as the input)
+  -o, --output string       Output file (default: stdout)
+  -s, --start int           Starting residue number (can be negative) (default 1)
 ```
 
 ### Examples

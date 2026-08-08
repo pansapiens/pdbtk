@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Occupancy and B-factor values are preserved instead of being replaced with `1.00` and `20.00`
 - Element symbols are preserved instead of being re-derived from the atom name (`ZN` was written as `Z`)
 - Waters and hetero records following a `TER` are no longer silently dropped while parsing
+- `get --help` no longer claims the default output filename is `{pdb_code}.pdb`; it is `{pdb_code}.{format}`, so `--format cif` writes `1a02.cif`
+- The `--force-lossy-pdb` help text no longer lists `>99999 atoms` as a loss condition (those are encoded as hybrid-36), and now mentions out-of-range coordinates
 - Coordinates, occupancies and B-factors too wide for their PDB column no longer overflow into the neighbouring field, which shifted every later column and left output `pdbtk` itself could not re-read. They are now reported by the format check, and rendered as asterisks under `--force-lossy-pdb`.
 
 ### Removed
