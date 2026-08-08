@@ -2,6 +2,9 @@ package structure
 
 import (
 	"bytes"
+	"compress/gzip"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -293,6 +296,175 @@ ATOM
 	if _, err := ReadCIF([]byte(src)); err == nil {
 		t.Error("expected an error for a loop_ ending mid-row")
 	}
+}
+
+const multiModelPDB = `HEADER                                                        2NMR
+MODEL        1
+ATOM      1  N   ALA A   1      10.000  10.000  10.000  1.00 11.18           N
+ATOM      2  CA  ALA A   1      11.000  10.000  10.000  1.00 10.53           C
+ENDMDL
+MODEL        2
+ATOM      1  N   ALA A   1      10.500  10.500  10.500  1.00 11.18           N
+ATOM      2  CA  ALA A   1      11.500  10.500  10.500  1.00 10.53           C
+ENDMDL
+MODEL        3
+ATOM      1  N   ALA A   1      10.900  10.900  10.900  1.00 11.18           N
+ATOM      2  CA  ALA A   1      11.900  10.900  10.900  1.00 10.53           C
+ENDMDL
+END
+`
+
+// NMR ensembles carry the model number on every atom; mmCIF keeps it in a
+// column while PDB brackets each model in MODEL/ENDMDL.
+func TestMultiModelSurvivesBothFormats(t *testing.T) {
+	s := mustReadPDB(t, multiModelPDB)
+	if len(s.Atoms) != 6 || !s.HasMultipleModels() {
+		t.Fatalf("parsed %d atoms across models=%v, want 6 in 3 models", len(s.Atoms), s.HasMultipleModels())
+	}
+	if s.Atoms[0].Model != 1 || s.Atoms[2].Model != 2 || s.Atoms[4].Model != 3 {
+		t.Fatalf("model numbers = %d/%d/%d, want 1/2/3",
+			s.Atoms[0].Model, s.Atoms[2].Model, s.Atoms[4].Model)
+	}
+
+	var cif bytes.Buffer
+	if err := WriteCIF(&cif, s, WriteOptions{Version: "test", CommandLine: "test"}); err != nil {
+		t.Fatalf("WriteCIF: %v", err)
+	}
+	viaCIF, err := ReadCIF(cif.Bytes())
+	if err != nil {
+		t.Fatalf("ReadCIF: %v", err)
+	}
+	for i := range s.Atoms {
+		if a, b := s.Atoms[i], viaCIF.Atoms[i]; a.Model != b.Model || a.X != b.X {
+			t.Fatalf("atom %d changed through mmCIF: model %d->%d, x %v->%v",
+				i, a.Model, b.Model, a.X, b.X)
+		}
+	}
+
+	var pdb bytes.Buffer
+	if err := WritePDB(&pdb, viaCIF, WriteOptions{Version: "test", CommandLine: "test"}); err != nil {
+		t.Fatalf("WritePDB: %v", err)
+	}
+	got := recordOrder(pdb.String(), "MODEL", "ENDMDL")
+	want := "MODEL,ENDMDL,MODEL,ENDMDL,MODEL,ENDMDL"
+	if got != want {
+		t.Errorf("model bracketing = %s, want %s", got, want)
+	}
+	if !strings.Contains(pdb.String(), "MODEL        2") {
+		t.Errorf("model numbers not preserved:\n%s", pdb.String())
+	}
+}
+
+// Insertion codes and out-of-range residue numbers are where fixed-column PDB
+// and free-form mmCIF disagree most.
+func TestInsertionCodesAndResidueNumbering(t *testing.T) {
+	const src = `HEADER                                                        1ABC
+ATOM      1  N   ALA A 100      10.000  10.000  10.000  1.00 11.18           N
+ATOM      2  N   GLY A 100A     11.000  10.000  10.000  1.00 11.18           N
+ATOM      3  N   SER A 100B     12.000  10.000  10.000  1.00 11.18           N
+ATOM      4 HG11 VAL A  -5      13.000  10.000  10.000  1.00 11.18           H
+END
+`
+	s := mustReadPDB(t, src)
+	if s.Atoms[1].InsCode != "A" || s.Atoms[2].InsCode != "B" {
+		t.Fatalf("insertion codes = %q/%q, want A/B", s.Atoms[1].InsCode, s.Atoms[2].InsCode)
+	}
+	if s.Atoms[0].ResSeq != 100 || s.Atoms[1].ResSeq != 100 {
+		t.Fatalf("residue numbers = %d/%d, want both 100", s.Atoms[0].ResSeq, s.Atoms[1].ResSeq)
+	}
+	if s.Atoms[3].ResSeq != -5 {
+		t.Errorf("negative residue number = %d, want -5", s.Atoms[3].ResSeq)
+	}
+	// Residues differing only by insertion code must not be merged.
+	if got := len(Residues(s.Atoms)); got != 4 {
+		t.Errorf("grouped into %d residues, want 4", got)
+	}
+	// A four-character atom name fills columns 13-16 with no leading space.
+	if s.Atoms[3].Name != "HG11" {
+		t.Errorf("four-character atom name = %q, want HG11", s.Atoms[3].Name)
+	}
+
+	var cif bytes.Buffer
+	if err := WriteCIF(&cif, s, WriteOptions{Version: "test", CommandLine: "test"}); err != nil {
+		t.Fatalf("WriteCIF: %v", err)
+	}
+	back, err := ReadCIF(cif.Bytes())
+	if err != nil {
+		t.Fatalf("ReadCIF: %v", err)
+	}
+	for i := range s.Atoms {
+		a, b := s.Atoms[i], back.Atoms[i]
+		if a.InsCode != b.InsCode || a.ResSeq != b.ResSeq || a.Name != b.Name {
+			t.Errorf("atom %d changed through mmCIF:\n in  %+v\n out %+v", i, *a, *b)
+		}
+	}
+}
+
+// A LINK to an atom that has been filtered away would name a residue the file
+// no longer contains, and SEQRES for a dropped chain is equally dangling.
+func TestFilterAtomsDropsOrphanedRecords(t *testing.T) {
+	s := mustReadPDB(t, samplePDB)
+	if len(s.Links) != 1 || len(s.SeqRes) != 1 {
+		t.Fatalf("fixture should start with one LINK and one SEQRES chain")
+	}
+
+	// The LINK joins CYS A 3 to ZN A 99; dropping the zinc orphans it.
+	noHetero := s.FilterAtoms(func(a *Atom) bool { return !a.Hetatm })
+	if len(noHetero.Links) != 0 {
+		t.Errorf("kept a LINK whose partner was filtered out: %+v", noHetero.Links)
+	}
+	if len(noHetero.SeqRes) != 1 {
+		t.Errorf("dropped SEQRES for a chain that still has atoms: %+v", noHetero.SeqRes)
+	}
+
+	nothing := s.FilterAtoms(func(a *Atom) bool { return false })
+	if len(nothing.SeqRes) != 0 || len(nothing.Links) != 0 {
+		t.Errorf("SEQRES/LINK survived removal of every atom: %+v / %+v",
+			nothing.SeqRes, nothing.Links)
+	}
+
+	// Filtering must not disturb the structure it was called on.
+	if len(s.Atoms) != 7 || len(s.Links) != 1 {
+		t.Errorf("FilterAtoms mutated its receiver: %d atoms, %d links", len(s.Atoms), len(s.Links))
+	}
+}
+
+func TestReadFileDecompressesGzip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.pdb.gz")
+
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	if _, err := zw.Write([]byte(samplePDB)); err != nil {
+		t.Fatalf("gzip write: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("gzip close: %v", err)
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
+		t.Fatalf("writing fixture: %v", err)
+	}
+
+	s, err := ReadFile(path, FormatUnknown)
+	if err != nil {
+		t.Fatalf("ReadFile on gzipped input: %v", err)
+	}
+	if len(s.Atoms) != 7 || s.ID != "1ABC" {
+		t.Errorf("gzipped read gave %d atoms, ID %q", len(s.Atoms), s.ID)
+	}
+}
+
+func recordOrder(output string, prefixes ...string) string {
+	var out []string
+	for _, l := range strings.Split(output, "\n") {
+		for _, p := range prefixes {
+			if strings.HasPrefix(l, p) {
+				out = append(out, p)
+				break
+			}
+		}
+	}
+	return strings.Join(out, ",")
 }
 
 func coordinateLines(s string) []string {

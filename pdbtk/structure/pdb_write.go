@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -58,6 +59,23 @@ func FitPDB(s *Structure) []string {
 		}
 		if _, ok := encodeHybrid36(a.ResSeq, 4); !ok {
 			add("residue number %d does not fit a PDB residue sequence field", a.ResSeq)
+		}
+		// Unlike the integer fields, the fixed-point columns have no hybrid-36
+		// escape: an over-wide value pushes every later column right and makes
+		// the line unreadable, so it has to be caught here.
+		for _, c := range [...]struct {
+			name string
+			v    float64
+		}{{"x", a.X}, {"y", a.Y}, {"z", a.Z}} {
+			if !fitsFixed(c.v, 8, 3) {
+				add("%s coordinate %.3f lies outside the PDB range -999.999 to 9999.999", c.name, c.v)
+			}
+		}
+		if a.HasOcc && !fitsFixed(a.Occupancy, 6, 2) {
+			add("occupancy %.2f does not fit the PDB occupancy field", a.Occupancy)
+		}
+		if a.HasB && !fitsFixed(a.BFactor, 6, 2) {
+			add("B-factor %.2f does not fit the PDB temperature factor field", a.BFactor)
 		}
 	}
 	return problems
@@ -161,7 +179,7 @@ func writeAtomLine(bw *bufio.Writer, a *Atom, serial int) {
 	if !a.HasB {
 		temp = 0.00
 	}
-	fmt.Fprintf(bw, "%s%s %s%s%3s %s%s%s   %8.3f%8.3f%8.3f%6.2f%6.2f          %2s%-2s\n",
+	fmt.Fprintf(bw, "%s%s %s%s%3s %s%s%s   %s%s%s%s%s          %2s%-2s\n",
 		record,
 		mustEncode(serial, 5),
 		formatAtomName(a),
@@ -170,8 +188,8 @@ func writeAtomLine(bw *bufio.Writer, a *Atom, serial int) {
 		padChain(a.ChainID),
 		mustEncode(a.ResSeq, 4),
 		padCol(a.InsCode),
-		a.X, a.Y, a.Z,
-		occ, temp,
+		mustFixed(a.X, 8, 3), mustFixed(a.Y, 8, 3), mustFixed(a.Z, 8, 3),
+		mustFixed(occ, 6, 2), mustFixed(temp, 6, 2),
 		truncate(strings.ToUpper(a.Element), 2),
 		truncate(a.Charge, 2),
 	)
@@ -232,6 +250,12 @@ func justifyAtomName(name, element string) string {
 	return fmt.Sprintf(" %-3s", name)
 }
 
+// fitsFixed reports whether a value renders within width characters as a
+// fixed-point number with prec decimal places.
+func fitsFixed(v float64, width, prec int) bool {
+	return len(strconv.FormatFloat(v, 'f', prec, 64)) <= width
+}
+
 // mustEncode renders a value into a fixed-width field, falling back to a run of
 // asterisks if even hybrid-36 cannot hold it. Callers reach this only in
 // --force-lossy-pdb mode, since FitPDB rejects such values otherwise.
@@ -240,6 +264,17 @@ func mustEncode(v, width int) string {
 		return s
 	}
 	return strings.Repeat("*", width)
+}
+
+// mustFixed is the fixed-point counterpart of mustEncode. Overflowing the field
+// would shift every later column, so an unrepresentable value becomes asterisks
+// and the record stays parseable.
+func mustFixed(v float64, width, prec int) string {
+	s := strconv.FormatFloat(v, 'f', prec, 64)
+	if len(s) > width {
+		return strings.Repeat("*", width)
+	}
+	return fmt.Sprintf("%*s", width, s)
 }
 
 func padCol(s string) string {

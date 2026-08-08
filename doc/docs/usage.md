@@ -35,9 +35,10 @@ $ pdbtk extract-seq 1a02.cif.gz
 ### Converting mmCIF to PDB
 
 mmCIF can represent structures the legacy PDB format cannot: chain IDs longer
-than one character, more than 99,999 atoms, and residue names longer than three
-characters. When such a structure would be written as PDB, `pdbtk` **fails with
-an error** rather than silently corrupting it:
+than one character, residue names longer than three characters, and coordinates
+outside the range `-999.999` to `9999.999`. When such a structure would be
+written as PDB, `pdbtk` **fails with an error** rather than silently corrupting
+it:
 
 ```text
 Error: structure cannot be represented in PDB format:
@@ -45,11 +46,16 @@ Error: structure cannot be represented in PDB format:
 write mmCIF instead (--out-format cif), or pass --force-lossy-pdb to convert anyway
 ```
 
-Pass `--force-lossy-pdb` to convert anyway. Chain IDs and residue names are
-truncated, atom serials and residue numbers beyond the column width are encoded
-using the wwPDB [hybrid-36](http://cci.lbl.gov/hybrid_36/) convention, a warning
-is printed to stderr, and a `REMARK   1 LOSSY CONVERSION` line records what was
-lost.
+Pass `--force-lossy-pdb` to convert anyway. Chain IDs, residue names and atom
+names are truncated, values that overflow a fixed-point column become asterisks
+so the remaining columns stay aligned, a warning is printed to stderr, and a
+`REMARK   1 LOSSY CONVERSION` line records what was lost.
+
+Atom serials above 99,999 and residue numbers above 9,999 are **not** treated as
+loss: they are written using the wwPDB
+[hybrid-36](http://cci.lbl.gov/hybrid_36/) convention, which `pdbtk` reads back
+exactly. Be aware that not every other tool understands hybrid-36 — write mmCIF
+if the file is destined for one that does not.
 
 ### What is preserved
 
